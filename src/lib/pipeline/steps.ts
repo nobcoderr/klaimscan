@@ -13,9 +13,9 @@ export function createInitialPipelineSteps(): PipelineStepState[] {
     {
       id: "claim_extraction",
       code: "02",
-      label: "Vision Claim Extraction",
+      label: "Text-First OCR & Claim Extraction",
       description:
-        "Ekstrak teks, klaim faktual, username publik, dan sikap postingan",
+        "Stage A: OCR teks berita/overlay/caption · Stage B: normalisasi klaim berbasis teks",
       status: "pending",
     },
     {

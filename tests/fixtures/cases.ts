@@ -8,6 +8,7 @@ export const DEMO_DATASET_BASELINE = {
 };
 
 export const STANDARD_REPORT_LIMITATIONS = [
+  "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
   "KLAIMSCAN AI tidak dapat dan tidak pernah mengklaim menemukan IP pribadi, alamat rumah, lokasi GPS presisi, atau identitas hukum pengunggah media sosial dari screenshot.",
   "Postingan publik paling awal yang teramati tidak serta-merta merupakan penulis asli atau pembuat pertama klaim.",
   "Verdict hanya mencerminkan sumber terbuka dan basis data fact-check yang berhasil terindeks pada saat pemeriksaan, tanpa skor probabilitas kepercayaan LLM buatan.",
@@ -46,10 +47,85 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "@vereditum • HOAKS: Kabar SIM berlaku seumur hidup gratis tanpa perpanjangan TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+      extractedHeadline: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
+      graphicOverlayTexts: ["HOAKS / KLARIFIKASI"],
+      extractedCaption:
+        "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+      captionTruncated: false,
+      clarificationOrDebunkText:
+        "HOAKS / KLARIFIKASI · TIDAK BENAR (Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun)",
       primaryClaim: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
       secondaryClaims: [
         "Perubahan masa berlaku SIM tidak memerlukan biaya perpanjangan lagi",
       ],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Surat Izin Mengemudi (SIM)",
+          predicateAction: "berlaku seumur hidup gratis tanpa perpanjangan",
+          objectTarget: "Pemegang SIM nasional",
+          proposition: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          eventDate: "November 2026",
+          legalOrAdministrativeStatus: "Regulasi tetap 5 tahun (UU No. 22 Tahun 2009)",
+          sourceRole: "headline",
+          semanticNote:
+            "Headline memuat isu klaim yang diuji, sementara caption @vereditum menjelaskan bantahan resmi Korlantas Polri.",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Klaim Kebijakan yang Diuji",
+          proposition: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      ocr: {
+        extractedHeadline: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
+        graphicOverlayTexts: ["HOAKS / KLARIFIKASI"],
+        extractedCaption:
+          "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+        captionTruncated: false,
+        publisherOrAccountName: "Vereditum Fact Check",
+        visibleAccountHandle: "@vereditum",
+        visiblePostUrl: "https://instagram.com/vereditum",
+        visiblePublicationDate: "3 jam lalu",
+        clarificationOrDebunkText: "HOAKS / KLARIFIKASI · TIDAK BENAR",
+        rawTranscript:
+          "@vereditum • HOAKS: Kabar SIM berlaku seumur hidup gratis tanpa perpanjangan TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+        language: "id",
+        platform: "Instagram",
+        ocrRegions: [
+          {
+            id: "OCR-01",
+            role: "publisher",
+            text: "@vereditum • Klarifikasi Fakta",
+            bbox: { x: 85, y: 140, width: 420, height: 68 },
+          },
+          {
+            id: "OCR-02",
+            role: "debunk_note",
+            text: "HOAKS / KLARIFIKASI",
+            bbox: { x: 85, y: 315, width: 250, height: 85 },
+          },
+          {
+            id: "OCR-03",
+            role: "headline",
+            text: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
+            bbox: { x: 85, y: 445, width: 760, height: 90 },
+          },
+          {
+            id: "OCR-04",
+            role: "caption",
+            text: "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+            bbox: { x: 85, y: 560, width: 790, height: 145 },
+          },
+        ],
+      },
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Kebijakan Publik & Lalu Lintas",
       claimDateMentioned: "November 2026",
       language: "id",
@@ -246,11 +322,30 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "INFO RESMI: Cek penerima bansos tunai Rp900.000 cukup masukkan NIK KTP dan nomor Telegram aktif di tautan daftar-bansos-id[.]example.",
+      extractedHeadline: "Cek Penerima Bansos Tunai Rp900.000 Berbasis KTP",
+      extractedCaption:
+        "INFO RESMI: Cek penerima bansos tunai Rp900.000 cukup masukkan NIK KTP dan nomor Telegram aktif di tautan daftar-bansos-id[.]example.",
       primaryClaim:
         "Pemerintah membagikan bansos Rp900.000 melalui tautan pendaftaran Telegram/KTP tidak resmi",
       secondaryClaims: [
         "Verifikasi bansos dilakukan dengan login akun Telegram pribadi",
       ],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Pemerintah / Kementerian Sosial",
+          predicateAction: "membuka pendaftaran bansos Rp900.000 via tautan Telegram",
+          objectTarget: "Masyarakat pemegang KTP",
+          proposition:
+            "Pemerintah membagikan bansos Rp900.000 melalui tautan pendaftaran Telegram/KTP tidak resmi",
+          eventDate: "November 2026",
+          legalOrAdministrativeStatus: null,
+          sourceRole: "combined",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Keamanan Siber & Phishing",
       claimDateMentioned: "November 2026",
       language: "id",
@@ -403,9 +498,28 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "BREAKING: Warga panik air laut surut mendadak siang ini di pesisir selatan, pertanda gempa megathrust!",
+      extractedHeadline: "Air Laut Surut Mendadak Siang Ini di Pesisir Selatan Pertanda Megathrust",
+      extractedCaption:
+        "BREAKING: Warga panik air laut surut mendadak siang ini di pesisir selatan, pertanda gempa megathrust!",
       primaryClaim:
         "Terjadi fenomena air laut surut mendadak akibat gempa megathrust di pesisir selatan hari ini",
       secondaryClaims: [],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Wilayah pesisir selatan",
+          predicateAction: "mengalami air laut surut mendadak akibat gempa megathrust",
+          objectTarget: "Pesisir selatan Indonesia",
+          proposition:
+            "Terjadi fenomena air laut surut mendadak akibat gempa megathrust di pesisir selatan hari ini",
+          eventDate: "Hari ini",
+          legalOrAdministrativeStatus: null,
+          sourceRole: "headline",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Kebencanaan & Lingkungan",
       claimDateMentioned: "Hari ini",
       language: "id",
@@ -557,9 +671,28 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "Info layanan perbankan: Transfer antarbank lewat BI-FAST dikenakan tarif maksimal Rp2.500 per transaksi untuk nasabah ritel.",
+      extractedHeadline: "Tarif Transfer Antarbank BI-FAST Maksimal Rp2.500 Per Transaksi",
+      extractedCaption:
+        "Info layanan perbankan: Transfer antarbank lewat BI-FAST dikenakan tarif maksimal Rp2.500 per transaksi untuk nasabah ritel.",
       primaryClaim:
         "Tarif transfer antarbank melalui layanan BI-FAST untuk nasabah maksimal Rp2.500 per transaksi",
       secondaryClaims: [],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Layanan transfer BI-FAST Bank Indonesia",
+          predicateAction: "menetapkan tarif maksimal Rp2.500 per transaksi",
+          objectTarget: "Nasabah ritel perbankan",
+          proposition:
+            "Tarif transfer antarbank melalui layanan BI-FAST untuk nasabah maksimal Rp2.500 per transaksi",
+          eventDate: null,
+          legalOrAdministrativeStatus: "Regulasi Bank Indonesia",
+          sourceRole: "headline",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Ekonomi & Perbankan",
       claimDateMentioned: null,
       language: "id",
@@ -683,9 +816,28 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "Katanya minggu depan ada tambahan cuti bersama nasional 5 hari karena agenda KTT. Ada yang sudah lihat SKB resminya?",
+      extractedHeadline: "Tambahan Cuti Bersama Nasional 5 Hari Minggu Depan",
+      extractedCaption:
+        "Katanya minggu depan ada tambahan cuti bersama nasional 5 hari karena agenda KTT. Ada yang sudah lihat SKB resminya?",
       primaryClaim:
         "Pemerintah menetapkan tambahan cuti bersama nasional selama 5 hari pada minggu depan",
       secondaryClaims: [],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Pemerintah RI",
+          predicateAction: "menetapkan tambahan cuti bersama 5 hari",
+          objectTarget: "Jadwal libur nasional minggu depan",
+          proposition:
+            "Pemerintah menetapkan tambahan cuti bersama nasional selama 5 hari pada minggu depan",
+          eventDate: "Minggu depan (November 2026)",
+          legalOrAdministrativeStatus: "Menunggu konfirmasi SKB 3 Menteri",
+          sourceRole: "combined",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Pemerintahan & Ketenagakerjaan",
       claimDateMentioned: "Minggu depan (November 2026)",
       language: "id",
@@ -790,9 +942,28 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     claimExtraction: {
       extractedText:
         "Mengutip headline berita: 'Subsidi penuh berlaku mulai bulan depan untuk seluruh masyarakat.' Apakah artinya semua rumah tangga otomatis gratis?",
+      extractedHeadline: "Subsidi Penuh Berlaku Mulai Bulan Depan Untuk Seluruh Masyarakat",
+      extractedCaption:
+        "Mengutip headline berita: 'Subsidi penuh berlaku mulai bulan depan untuk seluruh masyarakat.' Apakah artinya semua rumah tangga otomatis gratis?",
       primaryClaim:
         "Subsidi energi gratis penuh berlaku otomatis untuk seluruh masyarakat tanpa syarat kategori",
       secondaryClaims: [],
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Program subsidi energi pemerintah",
+          predicateAction: "berlaku penuh otomatis tanpa syarat kategori",
+          objectTarget: "Seluruh rumah tangga masyarakat",
+          proposition:
+            "Subsidi energi gratis penuh berlaku otomatis untuk seluruh masyarakat tanpa syarat kategori",
+          eventDate: "Bulan depan",
+          legalOrAdministrativeStatus: null,
+          sourceRole: "headline",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      textVerificationNotice:
+        "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.",
       topicCategory: "Ekonomi & Kebijakan Publik",
       claimDateMentioned: "Bulan depan",
       language: "id",

@@ -3,12 +3,15 @@
 import * as React from "react";
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   Clock,
   ExternalLink,
   FileText,
   Fingerprint,
   Globe2,
+  Highlighter,
+  Layers,
   Lock,
   Printer,
   ShieldAlert,
@@ -29,7 +32,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import type { EvidenceSource, InvestigationReport } from "@/lib/types";
+import {
+  type EvidenceSource,
+  type EvidenceTargetAspect,
+  type InvestigationReport,
+  type OcrRegionRole,
+  type OcrTextRegion,
+  type TemporalVerificationStatus,
+  TEXT_VERIFICATION_NOTICE,
+} from "@/lib/types";
 import { cn, formatWibTimestamp } from "@/lib/utils";
 import {
   EvidenceRelationBadge,
@@ -43,8 +54,72 @@ export type ResultViewTab = "assessment" | "timeline" | "trace" | "report";
 
 interface AnalysisResultProps {
   report: InvestigationReport;
+  screenshotPreviewUrl?: string;
   activeTab?: ResultViewTab;
   onTabChange?: (tab: ResultViewTab) => void;
+}
+
+function formatAspectLabel(aspect?: EvidenceTargetAspect): string | null {
+  switch (aspect) {
+    case "image_authenticity":
+      return "Aspek: Foto Sampul (Dikecualikan)";
+    case "event_occurrence":
+      return "Aspek: Kejadian / Niat";
+    case "official_legal_status":
+      return "Aspek: Proses Formal / Hukum";
+    case "text_claim":
+      return "Aspek: Klaim Teks";
+    default:
+      return null;
+  }
+}
+
+function formatTemporalLabel(
+  status?: TemporalVerificationStatus
+): string | null {
+  switch (status) {
+    case "historical_debunk":
+      return "Temporal: Klarifikasi Lama Dikecualikan";
+    case "date_mismatch":
+      return "Temporal: Beda Periode";
+    case "current_match":
+      return "Temporal: Sesuai Periode";
+    default:
+      return null;
+  }
+}
+
+function formatOcrRoleLabel(role: OcrRegionRole): string {
+  switch (role) {
+    case "headline":
+      return "HEADLINE";
+    case "graphic_overlay":
+      return "OVERLAY GRAFIS";
+    case "caption":
+      return "CAPTION";
+    case "publisher":
+      return "PUBLISHER / AKUN";
+    case "date":
+      return "TANGGAL";
+    case "debunk_note":
+      return "CATATAN BANTAHAN";
+    default:
+      return "OCR";
+  }
+}
+
+function getQualifiedLabelVariant(
+  label: string
+): "verified" | "threat" | "warning" | "default" {
+  const upper = label.toUpperCase();
+  if (upper.includes("FALSE")) return "threat";
+  if (upper.includes("CONFIRMED") || upper.includes("AUTHENTIC")) {
+    return "verified";
+  }
+  if (upper.includes("MISLEADING") || upper.includes("OUTDATED")) {
+    return "warning";
+  }
+  return "default";
 }
 
 function EvidenceGroupList({
@@ -84,9 +159,33 @@ function EvidenceGroupList({
                     </span>
                     <SourceTierBadge tier={src.sourceTier} />
                     <EvidenceRelationBadge relation={src.relation} />
+                    {formatAspectLabel(src.targetAspect) && (
+                      <Badge
+                        variant={
+                          src.targetAspect === "image_authenticity"
+                            ? "warning"
+                            : "outline"
+                        }
+                      >
+                        {formatAspectLabel(src.targetAspect)}
+                      </Badge>
+                    )}
+                    {src.evaluatedAtomicClaimId && (
+                      <Badge variant="secondary">
+                        {src.evaluatedAtomicClaimId}
+                      </Badge>
+                    )}
                     {src.publishedAt && (
                       <Badge variant="outline">Tgl: {src.publishedAt}</Badge>
                     )}
+                    {src.temporalStatus &&
+                      src.temporalStatus !== "unclear" &&
+                      src.temporalStatus !== "current_match" &&
+                      formatTemporalLabel(src.temporalStatus) && (
+                        <Badge variant="warning">
+                          {formatTemporalLabel(src.temporalStatus)}
+                        </Badge>
+                      )}
                     {src.ratingText && (
                       <Badge variant="outline">Rating: {src.ratingText}</Badge>
                     )}
@@ -123,13 +222,195 @@ function EvidenceGroupList({
   );
 }
 
+function OcrHighlightViewer({
+  screenshotPreviewUrl,
+  regions,
+  selectedRegionId,
+  onSelectRegion,
+}: {
+  screenshotPreviewUrl?: string;
+  regions: OcrTextRegion[];
+  selectedRegionId: string | null;
+  onSelectRegion: (id: string) => void;
+}) {
+  const activeRegion =
+    regions.find((r) => r.id === selectedRegionId) ?? regions[0] ?? null;
+
+  return (
+    <div className="flex flex-col justify-between rounded-xl border border-[#254159] bg-[#07111E]/85 p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Highlighter className="size-4 text-[#45DDEB]" />
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+            OCR Text Highlight
+          </p>
+        </div>
+        <Badge variant="outline" className="text-[10px]">
+          {screenshotPreviewUrl
+            ? "Screenshot Sesi Aktif"
+            : "Peta Koordinat OCR (Demo / Tanpa Gambar Server)"}
+        </Badge>
+      </div>
+
+      <div className="relative overflow-hidden rounded-lg border border-[#254159] bg-[#040B14]">
+        {screenshotPreviewUrl ? (
+          <div className="relative mx-auto w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={screenshotPreviewUrl}
+              alt="Screenshot yang dianalisis dengan sorotan OCR"
+              className="block max-h-[340px] w-full object-contain"
+            />
+            {regions.map((region) => {
+              const isSelected = activeRegion?.id === region.id;
+              return (
+                <button
+                  key={region.id}
+                  type="button"
+                  onClick={() => onSelectRegion(region.id)}
+                  title={`${formatOcrRoleLabel(region.role)}: ${region.text}`}
+                  aria-label={`Sorot wilayah OCR ${formatOcrRoleLabel(region.role)}`}
+                  style={{
+                    left: `${(region.bbox.x / 10).toFixed(1)}%`,
+                    top: `${(region.bbox.y / 10).toFixed(1)}%`,
+                    width: `${(region.bbox.width / 10).toFixed(1)}%`,
+                    height: `${(region.bbox.height / 10).toFixed(1)}%`,
+                  }}
+                  className={cn(
+                    "absolute cursor-pointer rounded transition-all",
+                    isSelected
+                      ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 shadow-[0_0_20px_rgba(69,221,235,0.55)]"
+                      : "z-10 border border-[#34D399]/55 bg-[#34D399]/10 hover:border-[#45DDEB]"
+                  )}
+                >
+                  {isSelected && (
+                    <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-[#07111E]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#45DDEB] shadow">
+                      {formatOcrRoleLabel(region.role)}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="relative aspect-[16/10] w-full bg-[#050E19]">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center font-mono text-[10px] tracking-wider text-[#8BA4C0]/40">
+              AREA FOTO SAMPUL DIABAIKAN • VERIFIKASI KLAIM TEKSTUAL SAJA
+            </div>
+            {regions.map((region) => {
+              const isSelected = activeRegion?.id === region.id;
+              return (
+                <button
+                  key={region.id}
+                  type="button"
+                  onClick={() => onSelectRegion(region.id)}
+                  style={{
+                    left: `${(region.bbox.x / 10).toFixed(1)}%`,
+                    top: `${(region.bbox.y / 10).toFixed(1)}%`,
+                    width: `${(region.bbox.width / 10).toFixed(1)}%`,
+                    height: `${(region.bbox.height / 10).toFixed(1)}%`,
+                  }}
+                  className={cn(
+                    "absolute flex cursor-pointer items-center justify-start overflow-hidden rounded px-2 text-left transition-all",
+                    isSelected
+                      ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 text-[#F3F8FF] shadow-[0_0_18px_rgba(69,221,235,0.4)]"
+                      : "z-10 border border-[#254159] bg-[#0D2133]/75 text-[#8BA4C0] hover:border-[#45DDEB]/60"
+                  )}
+                >
+                  <span className="truncate font-mono text-[10px]">
+                    [{formatOcrRoleLabel(region.role)}] {region.text}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {regions.length > 0 && (
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {regions.map((region) => {
+              const isSelected = activeRegion?.id === region.id;
+              return (
+                <button
+                  key={`chip-${region.id}`}
+                  type="button"
+                  onClick={() => onSelectRegion(region.id)}
+                  className={cn(
+                    "cursor-pointer rounded-md border px-2 py-1 font-mono text-[10px] transition-colors",
+                    isSelected
+                      ? "border-[#45DDEB] bg-[#113148] text-[#45DDEB]"
+                      : "border-[#254159] bg-[#040B14] text-[#8BA4C0] hover:text-[#F3F8FF]"
+                  )}
+                >
+                  {formatOcrRoleLabel(region.role)}
+                </button>
+              );
+            })}
+          </div>
+          {activeRegion && (
+            <div className="rounded-lg border border-[#45DDEB]/35 bg-[#040B14]/90 px-3 py-2 text-xs">
+              <span className="font-mono text-[10px] font-semibold uppercase text-[#45DDEB]">
+                {formatOcrRoleLabel(activeRegion.role)} TERPILIH:
+              </span>
+              <p className="mt-0.5 text-[#F3F8FF]">{activeRegion.text}</p>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AnalysisResult({
   report,
+  screenshotPreviewUrl,
   activeTab = "assessment",
   onTabChange,
 }: AnalysisResultProps) {
   const verdictStyle = getVerdictStyle(report.verdict.claimVerdict);
   const VerdictIcon = verdictStyle.Icon;
+
+  const ocrRegions = React.useMemo(
+    () => report.claimExtraction.ocr?.ocrRegions ?? [],
+    [report.claimExtraction.ocr]
+  );
+
+  const defaultRegionId =
+    ocrRegions.find((r) => r.role === "headline")?.id ??
+    ocrRegions[0]?.id ??
+    null;
+
+  const [regionSelection, setRegionSelection] = React.useState<{
+    caseId: string;
+    regionId: string | null;
+  }>({ caseId: report.caseId, regionId: defaultRegionId });
+
+  const selectedRegionId =
+    regionSelection.caseId === report.caseId
+      ? regionSelection.regionId
+      : defaultRegionId;
+
+  const setSelectedRegionId = (regionId: string | null) => {
+    setRegionSelection({ caseId: report.caseId, regionId });
+  };
+
+  const highlightByRoles = (roles: OcrRegionRole[]) => {
+    const match = ocrRegions.find((r) => roles.includes(r.role));
+    if (match) setSelectedRegionId(match.id);
+  };
+
+  const verificationNotice =
+    report.claimExtraction.textVerificationNotice || TEXT_VERIFICATION_NOTICE;
+
+  const extractedHeadline =
+    report.claimExtraction.extractedHeadline ||
+    report.claimExtraction.primaryClaim;
+
+  const extractedCaption = report.claimExtraction.extractedCaption;
+  const graphicOverlays = report.claimExtraction.graphicOverlayTexts ?? [];
+  const normalizedClaims = report.claimExtraction.normalizedClaims ?? [];
 
   const handlePrint = () => {
     if (onTabChange) {
@@ -188,6 +469,20 @@ export function AnalysisResult({
             <p className="text-sm font-medium leading-relaxed text-[#F3F8FF]">
               {report.claimExtraction.primaryClaim}
             </p>
+
+            {report.verdict.qualifiedStatusLabels &&
+              report.verdict.qualifiedStatusLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {report.verdict.qualifiedStatusLabels.map((label) => (
+                    <Badge
+                      key={label}
+                      variant={getQualifiedLabelVariant(label)}
+                    >
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              )}
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#254159]/70 pt-3">
               <div
@@ -290,7 +585,7 @@ export function AnalysisResult({
         </Alert>
       )}
 
-      {/* Detailed Forensic Investigation Tabs covering Result, Timeline, Public Trace, Case Report */}
+      {/* Detailed Forensic Investigation Tabs */}
       <Tabs
         value={activeTab}
         onValueChange={(v) => onTabChange?.(v as ResultViewTab)}
@@ -306,85 +601,464 @@ export function AnalysisResult({
         <TabsContent value="assessment" className="no-print space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Analysis Result — Claim vs Stance &amp; Evidence</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <CardTitle>
+                  Analysis Result — Claim vs Stance &amp; Evidence
+                </CardTitle>
+                <Badge variant="default">TEXT-FIRST NEWS VERIFICATION</Badge>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-[#254159] bg-[#07111E]/75 p-4">
-                  <p className="font-mono text-[11px] uppercase tracking-wider text-[#45DDEB]">
-                    Teks &amp; Indikator Terlihat pada Screenshot
-                  </p>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F3F8FF]">
-                    {report.claimExtraction.extractedText}
-                  </p>
-                  <div className="mt-3 flex flex-wrap gap-2 text-xs text-[#8BA4C0]">
+              {/* Mandatory Text-First Notice */}
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#45DDEB]/35 bg-[#0A1D2F] px-3.5 py-2.5 text-xs">
+                <span className="font-medium text-[#F3F8FF]">
+                  {verificationNotice}
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge variant="outline">
+                    Topik: {report.claimExtraction.topicCategory}
+                  </Badge>
+                  {report.claimExtraction.claimDateMentioned && (
                     <Badge variant="outline">
-                      Topik: {report.claimExtraction.topicCategory}
+                      Indikator Waktu: {report.claimExtraction.claimDateMentioned}
                     </Badge>
-                    {report.claimExtraction.claimDateMentioned && (
-                      <Badge variant="outline">
-                        Indikator Waktu:{" "}
-                        {report.claimExtraction.claimDateMentioned}
-                      </Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Phase 5 Grid: EXTRACTED HEADLINE + EXTRACTED CAPTION + Interactive OCR Highlight */}
+              <div
+                className={cn(
+                  "grid gap-4",
+                  screenshotPreviewUrl || ocrRegions.length > 0
+                    ? "lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"
+                    : "md:grid-cols-2"
+                )}
+              >
+                <div className="space-y-3">
+                  {/* 1. EXTRACTED HEADLINE */}
+                  <div
+                    role={
+                      ocrRegions.some(
+                        (r) =>
+                          r.role === "headline" || r.role === "graphic_overlay"
+                      )
+                        ? "button"
+                        : undefined
+                    }
+                    tabIndex={
+                      ocrRegions.some(
+                        (r) =>
+                          r.role === "headline" || r.role === "graphic_overlay"
+                      )
+                        ? 0
+                        : undefined
+                    }
+                    onClick={() =>
+                      highlightByRoles(["headline", "graphic_overlay"])
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        highlightByRoles(["headline", "graphic_overlay"]);
+                      }
+                    }}
+                    className={cn(
+                      "rounded-lg border border-[#254159] bg-[#07111E]/80 p-4 transition-colors",
+                      ocrRegions.some(
+                        (r) =>
+                          r.role === "headline" || r.role === "graphic_overlay"
+                      ) && "cursor-pointer hover:border-[#45DDEB]/65"
                     )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                        EXTRACTED HEADLINE
+                      </p>
+                      <span className="font-mono text-[10px] text-[#8BA4C0]">
+                        Teks Utama / Overlay Gambar
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#F3F8FF]">
+                      {extractedHeadline}
+                    </p>
+                    {graphicOverlays.length > 0 && (
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
+                        {graphicOverlays.map((overlay, idx) => (
+                          <Badge key={`overlay-${idx}`} variant="outline">
+                            Overlay: {overlay}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 2. EXTRACTED CAPTION */}
+                  <div
+                    role={
+                      ocrRegions.some((r) => r.role === "caption")
+                        ? "button"
+                        : undefined
+                    }
+                    tabIndex={
+                      ocrRegions.some((r) => r.role === "caption")
+                        ? 0
+                        : undefined
+                    }
+                    onClick={() => highlightByRoles(["caption", "debunk_note"])}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        highlightByRoles(["caption", "debunk_note"]);
+                      }
+                    }}
+                    className={cn(
+                      "rounded-lg border border-[#254159] bg-[#07111E]/80 p-4 transition-colors",
+                      ocrRegions.some((r) => r.role === "caption") &&
+                        "cursor-pointer hover:border-[#45DDEB]/65"
+                    )}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                        EXTRACTED CAPTION
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {report.claimExtraction.captionTruncated && (
+                          <Badge variant="warning">Caption Terpotong (...)</Badge>
+                        )}
+                        {report.claimExtraction.visibleAccountHandle && (
+                          <Badge variant="secondary">
+                            {report.claimExtraction.visibleAccountHandle}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F3F8FF]/90">
+                      {extractedCaption ||
+                        "Tidak terdapat caption terpisah yang terbaca pada screenshot."}
+                    </p>
+                    {report.claimExtraction.clarificationOrDebunkText && (
+                      <div className="mt-2.5 rounded-md border border-[#34D399]/35 bg-[#34D399]/10 px-2.5 py-1.5 text-xs text-[#34D399]">
+                        <strong>Catatan Klarifikasi Terlihat:</strong>{" "}
+                        {report.claimExtraction.clarificationOrDebunkText}
+                      </div>
+                    )}
+                    <details className="mt-2.5">
+                      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-[#8BA4C0]">
+                        Lihat Transkrip OCR Lengkap
+                      </summary>
+                      <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#8BA4C0]">
+                        {report.claimExtraction.extractedText}
+                      </p>
+                    </details>
                   </div>
                 </div>
 
-                <div className="space-y-3 rounded-lg border border-[#254159] bg-[#07111E]/75 p-4">
-                  <p className="font-mono text-[11px] uppercase tracking-wider text-[#45DDEB]">
-                    Penjelasan Verdict &amp; Sikap Postingan
-                  </p>
-                  <p className="text-sm leading-relaxed text-[#F3F8FF]">
-                    {report.verdict.explanation}
-                  </p>
-                  <p className="text-xs text-[#8BA4C0]">
-                    <strong className="text-[#F3F8FF]">Sikap postingan:</strong>{" "}
-                    {report.verdict.postClassification} —{" "}
-                    {report.claimExtraction.postStanceSummary}
-                  </p>
+                {/* Interactive OCR Text Highlight Box */}
+                {(screenshotPreviewUrl || ocrRegions.length > 0) && (
+                  <OcrHighlightViewer
+                    screenshotPreviewUrl={screenshotPreviewUrl}
+                    regions={ocrRegions}
+                    selectedRegionId={selectedRegionId}
+                    onSelectRegion={setSelectedRegionId}
+                  />
+                )}
+              </div>
+
+              {/* 3. NORMALIZED FACTUAL CLAIMS */}
+              <div className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <Layers className="size-4 text-[#45DDEB]" />
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                      NORMALIZED FACTUAL CLAIMS
+                    </p>
+                  </div>
+                  <span className="font-mono text-[11px] text-[#8BA4C0]">
+                    Ekstraksi Proposisi Berbasis Teks (Tanpa Inferensi Foto)
+                  </span>
                 </div>
+
+                {normalizedClaims.length > 0 ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    {normalizedClaims.map((nc) => (
+                      <div
+                        key={nc.id}
+                        className="rounded-lg border border-[#254159]/90 bg-[#040B14]/80 p-3.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-mono text-xs font-semibold text-[#45DDEB]">
+                            {nc.id}
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            <Badge variant="outline">
+                              Sumber: {nc.sourceRole.toUpperCase()}
+                            </Badge>
+                            {nc.eventDate && (
+                              <Badge variant="secondary">{nc.eventDate}</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-[#F3F8FF]">
+                          {nc.proposition}
+                        </p>
+                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0]">
+                          <div>
+                            <dt className="font-mono text-[10px] uppercase">
+                              Subjek
+                            </dt>
+                            <dd className="text-[#F3F8FF]/90">{nc.subject}</dd>
+                          </div>
+                          <div>
+                            <dt className="font-mono text-[10px] uppercase">
+                              Tindakan / Status
+                            </dt>
+                            <dd className="text-[#F3F8FF]/90">
+                              {nc.predicateAction}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-mono text-[10px] uppercase">
+                              Objek / Target
+                            </dt>
+                            <dd className="text-[#F3F8FF]/90">
+                              {nc.objectTarget}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="font-mono text-[10px] uppercase">
+                              Status Formal/Hukum
+                            </dt>
+                            <dd className="text-[#F3F8FF]/90">
+                              {nc.legalOrAdministrativeStatus || "Tidak disebut"}
+                            </dd>
+                          </div>
+                        </dl>
+                        {nc.semanticNote && (
+                          <p className="mt-2 rounded bg-[#0D2133] px-2 py-1 text-[11px] text-[#FBBF24]">
+                            {nc.semanticNote}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-2 text-xs text-[#8BA4C0]">
+                    Proposisi utama: {report.claimExtraction.primaryClaim}
+                  </p>
+                )}
+
+                {report.verdict.atomicAssessments &&
+                  report.verdict.atomicAssessments.length > 0 && (
+                    <div className="mt-4 border-t border-[#254159]/70 pt-3">
+                      <p className="font-mono text-[10px] uppercase tracking-wider text-[#8BA4C0]">
+                        Status Verifikasi Per Proposisi Atomik
+                      </p>
+                      <div className="mt-2 grid gap-2.5 md:grid-cols-2">
+                        {report.verdict.atomicAssessments.map((item) => (
+                          <div
+                            key={item.id}
+                            className="rounded-lg border border-[#254159]/80 bg-[#040B14]/70 p-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-mono text-xs text-[#45DDEB]">
+                                {item.id} · {item.label}
+                              </span>
+                              <Badge
+                                variant={getQualifiedLabelVariant(
+                                  item.statusLabel
+                                )}
+                              >
+                                {item.statusLabel}
+                              </Badge>
+                            </div>
+                            <p className="mt-1.5 text-xs font-medium text-[#F3F8FF]">
+                              {item.proposition}
+                            </p>
+                            <p className="mt-1 text-[11px] text-[#8BA4C0]">
+                              {item.rationale}
+                              {item.evidenceIds.length > 0
+                                ? ` (${item.evidenceIds.join(", ")})`
+                                : ""}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
+
+              {/* 4. FACT CHECK VERDICT */}
+              <div className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                    FACT CHECK VERDICT
+                  </p>
+                  <VerdictBadge verdict={report.verdict.claimVerdict} />
+                </div>
+                <p className="mt-2 text-sm leading-relaxed text-[#F3F8FF]">
+                  {report.verdict.explanation}
+                </p>
+                <p className="mt-2 text-xs text-[#8BA4C0]">
+                  <strong className="text-[#F3F8FF]">Sikap postingan:</strong>{" "}
+                  {report.verdict.postClassification} —{" "}
+                  {report.claimExtraction.postStanceSummary}
+                </p>
               </div>
 
               <Separator />
 
-              {report.evidenceSources.length === 0 ? (
-                <Alert variant="cyber">
-                  <ShieldAlert className="size-4 text-[#45DDEB]" />
-                  <AlertTitle>
-                    Bukti Tidak Mencukupi — Status UNVERIFIED
-                  </AlertTitle>
-                  <AlertDescription>
-                    Tidak ditemukan URL sumber resmi atau pemeriksa fakta yang
-                    memadai untuk mendukung maupun membantah klaim ini. Sesuai
-                    aturan verifikasi, tidak ada kutipan atau skor probabilitas
-                    yang direkayasa.
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="grid gap-5 lg:grid-cols-2">
-                  <EvidenceGroupList
-                    title="Supporting Evidence (Mendukung Klaim)"
-                    emptyLabel="Tidak ada sumber terindeks yang mendukung klaim ini."
-                    items={report.supportingEvidence}
-                    accentClass="text-[#34D399]"
-                  />
-                  <EvidenceGroupList
-                    title="Contradicting Evidence (Membantah Klaim)"
-                    emptyLabel="Tidak ada sumber terindeks yang membantah klaim ini."
-                    items={report.contradictingEvidence}
-                    accentClass="text-[#F87171]"
-                  />
+              {/* 5. EVIDENCE SOURCES */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                    EVIDENCE SOURCES
+                  </p>
+                  <span className="font-mono text-[11px] text-[#8BA4C0]">
+                    {report.supportingEvidence.length} mendukung ·{" "}
+                    {report.contradictingEvidence.length} membantah ·{" "}
+                    {report.partialContextEvidence.length} konteks
+                  </span>
                 </div>
-              )}
 
-              {report.partialContextEvidence.length > 0 && (
-                <EvidenceGroupList
-                  title="Partial / Outdated Context Evidence"
-                  emptyLabel=""
-                  items={report.partialContextEvidence}
-                  accentClass="text-[#FBBF24]"
-                />
-              )}
+                {report.evidenceSources.length === 0 ? (
+                  <Alert variant="cyber">
+                    <ShieldAlert className="size-4 text-[#45DDEB]" />
+                    <AlertTitle>
+                      Bukti Tidak Mencukupi — Status UNVERIFIED
+                    </AlertTitle>
+                    <AlertDescription>
+                      Tidak ditemukan URL sumber resmi atau pemeriksa fakta yang
+                      memadai untuk mendukung maupun membantah klaim ini. Sesuai
+                      aturan verifikasi, tidak ada kutipan atau skor probabilitas
+                      yang direkayasa.
+                    </AlertDescription>
+                  </Alert>
+                ) : (
+                  <div className="grid gap-5 lg:grid-cols-2">
+                    <EvidenceGroupList
+                      title="Supporting Evidence (Mendukung Klaim)"
+                      emptyLabel="Tidak ada sumber terindeks yang mendukung klaim ini."
+                      items={report.supportingEvidence}
+                      accentClass="text-[#34D399]"
+                    />
+                    <EvidenceGroupList
+                      title="Contradicting Evidence (Membantah Klaim)"
+                      emptyLabel="Tidak ada sumber terindeks yang membantah klaim ini."
+                      items={report.contradictingEvidence}
+                      accentClass="text-[#F87171]"
+                    />
+                  </div>
+                )}
+
+                {report.partialContextEvidence.length > 0 && (
+                  <EvidenceGroupList
+                    title="Partial / Outdated Context Evidence"
+                    emptyLabel=""
+                    items={report.partialContextEvidence}
+                    accentClass="text-[#FBBF24]"
+                  />
+                )}
+
+                {report.evidenceSources.some(
+                  (s) => s.relation === "irrelevant"
+                ) && (
+                  <details className="rounded-xl border border-[#254159] bg-[#07111E]/65 p-4">
+                    <summary className="cursor-pointer font-mono text-xs font-semibold uppercase tracking-wider text-[#8BA4C0]">
+                      Sumber Dikecualikan / Foto Sampul / Klarifikasi Lama (
+                      {
+                        report.evidenceSources.filter(
+                          (s) => s.relation === "irrelevant"
+                        ).length
+                      }
+                      )
+                    </summary>
+                    <div className="mt-3 space-y-2.5">
+                      {report.evidenceSources
+                        .filter((s) => s.relation === "irrelevant")
+                        .map((src) => (
+                          <div
+                            key={`excluded-${src.id}-${src.url}`}
+                            className="rounded-lg border border-[#254159]/70 bg-[#040B14]/70 p-3 text-xs text-[#8BA4C0]"
+                          >
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-mono text-[#45DDEB]">
+                                {src.id}
+                              </span>
+                              <SourceTierBadge tier={src.sourceTier} />
+                              {formatAspectLabel(src.targetAspect) && (
+                                <Badge variant="warning">
+                                  {formatAspectLabel(src.targetAspect)}
+                                </Badge>
+                              )}
+                              {formatTemporalLabel(src.temporalStatus) && (
+                                <Badge variant="warning">
+                                  {formatTemporalLabel(src.temporalStatus)}
+                                </Badge>
+                              )}
+                              {src.publishedAt && (
+                                <Badge variant="outline">
+                                  Tgl: {src.publishedAt}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="mt-1 font-medium text-[#F3F8FF]">
+                              {src.title}
+                            </p>
+                            <p className="mt-1">{src.rationale}</p>
+                          </div>
+                        ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+
+              {/* 6 & 7 Quick Summary Cards: VERIFICATION TIMELINE & PUBLIC SOURCE TRACE */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                      VERIFICATION TIMELINE
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onTabChange?.("timeline")}
+                      className="h-7 px-2 font-mono text-[11px] text-[#45DDEB]"
+                    >
+                      Buka Timeline
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8BA4C0]">
+                    {report.publicOriginTrace.timeline.length} titik jejak
+                    kronologis tercatat (postingan teramati, sumber rujukan, &amp;
+                    audit AI).
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                      PUBLIC SOURCE TRACE
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onTabChange?.("trace")}
+                      className="h-7 px-2 font-mono text-[11px] text-[#45DDEB]"
+                    >
+                      Buka Trace
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8BA4C0]">
+                    Platform: {report.publicOriginTrace.platform} · Handle:{" "}
+                    {report.publicOriginTrace.visibleAccountHandle ||
+                      "Tidak terlihat"}
+                  </p>
+                </div>
+              </div>
 
               <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
                 <p className="font-mono text-xs uppercase tracking-wider text-[#FBBF24]">
@@ -573,7 +1247,7 @@ export function AnalysisResult({
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="font-mono text-xs uppercase tracking-widest text-[#45DDEB] print-muted">
-                    KLAIMSCAN AI • AUDITABLE CASE REPORT{" "}
+                    KLAIMSCAN AI • TEXT-FIRST AUDITABLE CASE REPORT{" "}
                     {report.isDemo ? "• DEMO FIXTURE" : ""}
                   </p>
                   <CardTitle className="mt-1 text-xl">
@@ -597,10 +1271,14 @@ export function AnalysisResult({
             </CardHeader>
 
             <CardContent className="space-y-5 pt-5">
+              <div className="rounded-lg border border-[#45DDEB]/40 p-3 text-xs font-medium print-surface">
+                {verificationNotice}
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-lg border border-[#254159] p-4 print-surface">
                   <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
-                    Klaim Dianalisis &amp; Verdict Faktual
+                    Klaim Tekstual &amp; Verdict Faktual
                   </p>
                   <p className="mt-1 font-heading text-lg font-bold">
                     {report.verdict.claimVerdict} (
@@ -609,6 +1287,27 @@ export function AnalysisResult({
                   <p className="mt-2 text-sm">
                     {report.claimExtraction.primaryClaim}
                   </p>
+                  <p className="mt-2 text-xs text-[#8BA4C0] print-muted">
+                    <strong>Headline:</strong> {extractedHeadline}
+                  </p>
+                  {extractedCaption && (
+                    <p className="mt-1 text-xs text-[#8BA4C0] print-muted">
+                      <strong>Caption:</strong> {extractedCaption}
+                    </p>
+                  )}
+                  {report.verdict.qualifiedStatusLabels &&
+                    report.verdict.qualifiedStatusLabels.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {report.verdict.qualifiedStatusLabels.map((label) => (
+                          <Badge
+                            key={`print-${label}`}
+                            variant={getQualifiedLabelVariant(label)}
+                          >
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                 </div>
 
                 <div className="rounded-lg border border-[#254159] p-4 print-surface">
@@ -647,6 +1346,31 @@ export function AnalysisResult({
                 )}
               </div>
 
+              {report.verdict.atomicAssessments &&
+                report.verdict.atomicAssessments.length > 0 && (
+                  <div className="rounded-lg border border-[#254159] p-4 print-surface">
+                    <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+                      Rincian Proposisi Atomik &amp; Aspek Verifikasi
+                    </p>
+                    <div className="mt-2 space-y-2">
+                      {report.verdict.atomicAssessments.map((item) => (
+                        <div
+                          key={`print-ac-${item.id}`}
+                          className="border-b border-[#254159]/40 pb-2 text-xs last:border-b-0 last:pb-0"
+                        >
+                          <div className="font-semibold">
+                            [{item.id}] {item.label}: {item.statusLabel}
+                          </div>
+                          <div>{item.proposition}</div>
+                          <div className="text-[11px] text-[#8BA4C0] print-muted">
+                            {item.rationale}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <h4 className="font-heading text-sm font-semibold">
@@ -675,7 +1399,7 @@ export function AnalysisResult({
                     <TableHeader>
                       <TableRow>
                         <TableHead>ID</TableHead>
-                        <TableHead>Kategori</TableHead>
+                        <TableHead>Kategori &amp; Aspek</TableHead>
                         <TableHead>Penerbit &amp; Tgl</TableHead>
                         <TableHead>Klaim Dievaluasi, Judul &amp; URL Sumber</TableHead>
                       </TableRow>
@@ -687,7 +1411,18 @@ export function AnalysisResult({
                             {src.id}
                           </TableCell>
                           <TableCell className="font-mono text-xs">
-                            {src.relation}
+                            <div>{src.relation}</div>
+                            {src.targetAspect && (
+                              <div className="text-[11px] text-[#8BA4C0] print-muted">
+                                {src.targetAspect}
+                              </div>
+                            )}
+                            {src.temporalStatus &&
+                              src.temporalStatus !== "unclear" && (
+                                <div className="text-[11px] text-[#8BA4C0] print-muted">
+                                  {src.temporalStatus}
+                                </div>
+                              )}
                           </TableCell>
                           <TableCell className="text-xs">
                             <div className="font-medium">{src.publisher}</div>

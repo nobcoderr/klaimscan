@@ -111,7 +111,10 @@ function createSamplePngFile(): Promise<File> {
 
 interface DropzoneScannerProps {
   serverConfig: ServerConfigStatus;
-  onAnalysisComplete: (report: InvestigationReport) => void;
+  onAnalysisComplete: (
+    report: InvestigationReport,
+    ephemeralPreviewUrl?: string
+  ) => void;
   onSelectDemoCase: (caseId: string) => void;
 }
 
@@ -277,7 +280,8 @@ export function DropzoneScanner({
       toast.success(
         `Analisis selesai (${completedReport.verdict.claimVerdict})`
       );
-      onAnalysisComplete(completedReport);
+      const handedPreviewUrl = URL.createObjectURL(selectedFile);
+      onAnalysisComplete(completedReport, handedPreviewUrl);
     } catch (error) {
       const msg =
         error instanceof Error
@@ -305,8 +309,8 @@ export function DropzoneScanner({
           <CardTitle className="text-lg">New Intelligence Analysis</CardTitle>
           <p className="mt-1 text-xs text-[#8BA4C0]">
             Unggah screenshot postingan media sosial (PNG, JPG, WEBP maks. 5 MB)
-            untuk ekstraksi klaim, penelusuran web langsung, dan laporan
-            terverifikasi.
+            untuk ekstraksi OCR teks berita/caption, penelusuran web langsung,
+            dan verifikasi klaim teks tanpa menilai keaslian foto sampul.
           </p>
         </div>
         <span className="font-mono text-xs tracking-widest text-[#45DDEB]">

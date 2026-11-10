@@ -1,3 +1,6 @@
+export const TEXT_VERIFICATION_NOTICE =
+  "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa.";
+
 export type ClaimVerdict =
   | "FALSE"
   | "TRUE"
@@ -17,6 +20,95 @@ export type EvidenceRelation =
   | "contradicting"
   | "partial_context"
   | "irrelevant";
+
+export type EvidenceTargetAspect =
+  | "text_claim"
+  | "image_authenticity"
+  | "event_occurrence"
+  | "official_legal_status";
+
+export type TemporalVerificationStatus =
+  | "current_match"
+  | "historical_debunk"
+  | "date_mismatch"
+  | "unclear";
+
+export type AtomicClaimCategory =
+  | "main_event"
+  | "person_and_role"
+  | "time_and_location"
+  | "formal_legal_status"
+  | "caption_context";
+
+export type OcrRegionRole =
+  | "headline"
+  | "graphic_overlay"
+  | "caption"
+  | "publisher"
+  | "date"
+  | "debunk_note";
+
+export interface OcrBoundingBox {
+  /** Normalized 0..1000 left offset */
+  x: number;
+  /** Normalized 0..1000 top offset */
+  y: number;
+  /** Normalized 0..1000 width */
+  width: number;
+  /** Normalized 0..1000 height */
+  height: number;
+}
+
+export interface OcrTextRegion {
+  id: string;
+  role: OcrRegionRole;
+  text: string;
+  bbox: OcrBoundingBox;
+}
+
+export interface ScreenshotOcrResult {
+  extractedHeadline: string | null;
+  graphicOverlayTexts: string[];
+  extractedCaption: string | null;
+  captionTruncated?: boolean;
+  publisherOrAccountName: string | null;
+  visibleAccountHandle: string | null;
+  visiblePostUrl: string | null;
+  visiblePublicationDate: string | null;
+  clarificationOrDebunkText: string | null;
+  rawTranscript: string;
+  language: string;
+  platform: PlatformType;
+  ocrRegions: OcrTextRegion[];
+}
+
+export interface NormalizedFactualClaim {
+  id: string;
+  subject: string;
+  predicateAction: string;
+  objectTarget: string;
+  proposition: string;
+  eventDate: string | null;
+  legalOrAdministrativeStatus: string | null;
+  sourceRole: "headline" | "caption" | "combined";
+  semanticNote?: string | null;
+  requiredForFullConfirmation?: boolean;
+}
+
+export interface AtomicClaimItem {
+  id: string;
+  category: AtomicClaimCategory;
+  label: string;
+  proposition: string;
+  requiredForFullConfirmation?: boolean;
+}
+
+export interface AtomicClaimAssessment extends AtomicClaimItem {
+  status: ClaimVerdict;
+  statusLabel: string;
+  evidenceIds: string[];
+  rationale: string;
+}
 
 export type SourceTier =
   | "official_government"
@@ -59,8 +151,17 @@ export interface PipelineStepState {
 
 export interface ClaimExtractionResult {
   extractedText: string;
+  extractedHeadline?: string | null;
+  graphicOverlayTexts?: string[];
+  extractedCaption?: string | null;
+  captionTruncated?: boolean;
+  clarificationOrDebunkText?: string | null;
   primaryClaim: string;
   secondaryClaims: string[];
+  normalizedClaims?: NormalizedFactualClaim[];
+  atomicClaims?: AtomicClaimItem[];
+  ocr?: ScreenshotOcrResult;
+  textVerificationNotice?: string;
   topicCategory: string;
   claimDateMentioned: string | null;
   language: string;
@@ -84,6 +185,10 @@ export interface EvidenceSource {
   publishedAt: string | null;
   snippet: string;
   relation: EvidenceRelation;
+  targetAspect?: EvidenceTargetAspect;
+  temporalStatus?: TemporalVerificationStatus;
+  sourceEventDate?: string | null;
+  evaluatedAtomicClaimId?: string | null;
   claimEvaluated: string;
   sourceTier: SourceTier;
   origin: "google_fact_check" | "openai_web_search" | "demo_fixture";
@@ -129,6 +234,8 @@ export interface VerdictAssessment {
   postStance: PostStance;
   summary: string;
   explanation: string;
+  qualifiedStatusLabels?: string[];
+  atomicAssessments?: AtomicClaimAssessment[];
   evidenceMetrics: {
     totalRetrieved: number;
     relevantSources: number;
@@ -177,4 +284,7 @@ export interface ServerConfigStatus {
   searchModel: string;
   usingFallbackVisionModel: boolean;
   usingFallbackSearchModel: boolean;
+  publicAnalyzeEnabled?: boolean;
+  accessTokenRequired?: boolean;
+  distributedRateLimitConfigured?: boolean;
 }

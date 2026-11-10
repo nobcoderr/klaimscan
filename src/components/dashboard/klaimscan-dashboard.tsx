@@ -92,9 +92,25 @@ export function KlaimscanDashboard({
   const [sessionReports, setSessionReports] = React.useState<
     InvestigationReport[]
   >([]);
+  const [sessionPreviews, setSessionPreviews] = React.useState<
+    Record<string, string>
+  >({});
+  const previewsRef = React.useRef<Record<string, string>>({});
   const [activeCaseId, setActiveCaseId] = React.useState<string>(
     DEMO_CASES[0].caseId
   );
+
+  React.useEffect(() => {
+    previewsRef.current = sessionPreviews;
+  }, [sessionPreviews]);
+
+  React.useEffect(() => {
+    return () => {
+      for (const url of Object.values(previewsRef.current)) {
+        URL.revokeObjectURL(url);
+      }
+    };
+  }, []);
 
   const allCases = React.useMemo(
     () => [...sessionReports, ...DEMO_CASES],
@@ -117,7 +133,16 @@ export function KlaimscanDashboard({
     DEMO_DATASET_BASELINE.sourcesFound +
     sessionReports.reduce((sum, r) => sum + r.evidenceSources.length, 0);
 
-  const handleAnalysisComplete = (report: InvestigationReport) => {
+  const handleAnalysisComplete = (
+    report: InvestigationReport,
+    ephemeralPreviewUrl?: string
+  ) => {
+    if (ephemeralPreviewUrl) {
+      setSessionPreviews((prev) => ({
+        ...prev,
+        [report.caseId]: ephemeralPreviewUrl,
+      }));
+    }
     setSessionReports((prev) => [report, ...prev]);
     setActiveCaseId(report.caseId);
     setResultTab("assessment");
@@ -382,8 +407,8 @@ export function KlaimscanDashboard({
               Threat Intelligence Dashboard
             </h1>
             <p className="mt-1 text-sm text-[#8BA4C0]">
-              Analisis klaim digital berbasis bukti resmi dan penelusuran
-              sumber terbuka (Kategori Siber Sosial)
+              Verifikasi klaim berita berbasis teks (OCR headline &amp; caption)
+              dengan sumber resmi dan penelusuran terbuka (Kategori Siber Sosial)
             </p>
           </div>
 
@@ -462,6 +487,7 @@ export function KlaimscanDashboard({
 
               <AnalysisResult
                 report={activeReport}
+                screenshotPreviewUrl={sessionPreviews[activeReport.caseId]}
                 activeTab={resultTab}
                 onTabChange={handleResultTabChange}
               />
@@ -484,6 +510,7 @@ export function KlaimscanDashboard({
             section === "case-report") && (
             <AnalysisResult
               report={activeReport}
+              screenshotPreviewUrl={sessionPreviews[activeReport.caseId]}
               activeTab={resultTab}
               onTabChange={handleResultTabChange}
             />

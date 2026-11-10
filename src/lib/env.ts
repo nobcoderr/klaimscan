@@ -4,6 +4,12 @@ import type { ServerConfigStatus } from "./types";
 
 const DEFAULT_MODEL = "gpt-5.4-mini";
 
+export type TrustedProxyMode =
+  | "none"
+  | "vercel"
+  | "cloudflare"
+  | "forwarded-rightmost";
+
 const PLACEHOLDER_PATTERNS = [
   /^isi_/i,
   /^nama_model_/i,
@@ -68,6 +74,44 @@ function resolveEnvValue(key: string): string | undefined {
   return undefined;
 }
 
+function resolveIntEnv(
+  key: string,
+  fallback: number,
+  min: number,
+  max: number
+): number {
+  const raw = resolveEnvValue(key);
+  if (!raw) return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function resolveBooleanEnv(key: string, fallback: boolean): boolean {
+  const raw = resolveEnvValue(key);
+  if (!raw) return fallback;
+  const normalized = raw.toLowerCase();
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  return fallback;
+}
+
+export function parseTrustedProxyMode(raw?: string): TrustedProxyMode {
+  const normalized = raw?.trim().toLowerCase();
+  if (
+    normalized === "vercel" ||
+    normalized === "cloudflare" ||
+    normalized === "forwarded-rightmost" ||
+    normalized === "none"
+  ) {
+    return normalized;
+  }
+  if (process.env.VERCEL === "1") {
+    return "vercel";
+  }
+  return "none";
+}
+
 export interface ServerEnvConfig {
   openAiApiKey: string | undefined;
   factCheckApiKey: string | undefined;
@@ -75,6 +119,16 @@ export interface ServerEnvConfig {
   searchModel: string;
   usingFallbackVisionModel: boolean;
   usingFallbackSearchModel: boolean;
+  publicAnalyzeEnabled: boolean;
+  analyzeAccessToken?: string;
+  rateLimitMaxRequests: number;
+  rateLimitWindowMs: number;
+  globalHourlyLimit: number;
+  maxConcurrentAnalyses: number;
+  pipelineDeadlineMs: number;
+  trustedProxyMode: TrustedProxyMode;
+  upstashRedisRestUrl?: string;
+  upstashRedisRestToken?: string;
 }
 
 export function getServerEnvConfig(): ServerEnvConfig {
@@ -87,6 +141,9 @@ export function getServerEnvConfig(): ServerEnvConfig {
   const visionModel = rawVisionModel || DEFAULT_MODEL;
   const searchModel = rawSearchModel || DEFAULT_MODEL;
 
+  const upstashRedisRestUrl = resolveEnvValue("UPSTASH_REDIS_REST_URL");
+  const upstashRedisRestToken = resolveEnvValue("UPSTASH_REDIS_REST_TOKEN");
+
   return {
     openAiApiKey,
     factCheckApiKey,
@@ -94,6 +151,36 @@ export function getServerEnvConfig(): ServerEnvConfig {
     searchModel,
     usingFallbackVisionModel: !rawVisionModel,
     usingFallbackSearchModel: !rawSearchModel,
+    publicAnalyzeEnabled: resolveBooleanEnv(
+      "ANALYZE_PUBLIC_ACCESS_ENABLED",
+      true
+    ),
+    analyzeAccessToken: resolveEnvValue("ANALYZE_ACCESS_TOKEN"),
+    rateLimitMaxRequests: resolveIntEnv("ANALYZE_RATE_LIMIT_MAX", 12, 1, 120),
+    rateLimitWindowMs: resolveIntEnv(
+      "ANALYZE_RATE_LIMIT_WINDOW_MS",
+      60_000,
+      1_000,
+      3_600_000
+    ),
+    globalHourlyLimit: resolveIntEnv(
+      "ANALYZE_GLOBAL_HOURLY_LIMIT",
+      60,
+      1,
+      10_000
+    ),
+    maxConcurrentAnalyses: resolveIntEnv("ANALYZE_MAX_CONCURRENT", 4, 1, 32),
+    pipelineDeadlineMs: resolveIntEnv(
+      "ANALYZE_PIPELINE_DEADLINE_MS",
+      48_000,
+      10_000,
+      55_000
+    ),
+    trustedProxyMode: parseTrustedProxyMode(
+      resolveEnvValue("TRUSTED_PROXY_MODE")
+    ),
+    upstashRedisRestUrl,
+    upstashRedisRestToken,
   };
 }
 
@@ -106,5 +193,10 @@ export function getServerConfigStatus(): ServerConfigStatus {
     searchModel: cfg.searchModel,
     usingFallbackVisionModel: cfg.usingFallbackVisionModel,
     usingFallbackSearchModel: cfg.usingFallbackSearchModel,
+    publicAnalyzeEnabled: cfg.publicAnalyzeEnabled,
+    accessTokenRequired: Boolean(cfg.analyzeAccessToken),
+    distributedRateLimitConfigured: Boolean(
+      cfg.upstashRedisRestUrl && cfg.upstashRedisRestToken
+    ),
   };
 }

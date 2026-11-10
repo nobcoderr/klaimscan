@@ -21,6 +21,26 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     ).toBeVisible();
     await expect(page.getByText("Debunking (Membantah)").first()).toBeVisible();
 
+    // Verify Text-First UI sections & mandatory disclaimer
+    await expect(page.getByText("EXTRACTED HEADLINE")).toBeVisible();
+    await expect(page.getByText("EXTRACTED CAPTION")).toBeVisible();
+    await expect(page.getByText("NORMALIZED FACTUAL CLAIMS")).toBeVisible();
+    await expect(page.getByText("FACT CHECK VERDICT")).toBeVisible();
+    await expect(page.getByText("EVIDENCE SOURCES")).toBeVisible();
+    await expect(
+      page
+        .getByText(
+          "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa."
+        )
+        .first()
+    ).toBeVisible();
+    await expect(page.getByText("VIRAL PHOTO FALSE")).toHaveCount(0);
+
+    // Interactive OCR Text Highlight selection
+    await expect(page.getByText("OCR Text Highlight")).toBeVisible();
+    await page.getByRole("button", { name: "CAPTION", exact: true }).click();
+    await expect(page.getByText("CAPTION TERPILIH:")).toBeVisible();
+
     // Load generated sample screenshot and verify preview renders on Dashboard
     await page.getByRole("button", { name: "Muat Sample Uji", exact: true }).click();
     await expect(

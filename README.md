@@ -11,8 +11,9 @@ Dibangun untuk **Kartika Cyber Hackathon 2026 — Kategori Siber Sosial** (MVP T
 1. **Screenshot Upload & Server-Side Sanitization**
    - Menerima gambar **PNG, JPG, atau WebP hingga 5 MB** dengan preview langsung di browser.
    - Validasi *magic bytes* di server, penghapusan segmen metadata EXIF/XMP/tEXt/eXIf secara *in-memory*, komputasi hash **SHA-256**, dan **zero permanent storage** untuk gambar pengguna.
-2. **AI Vision Extraction & Post-Stance Isolation**
-   - Mengekstrak teks terlihat, klaim faktual utama, platform, handle publik, URL publik terlihat, dan indikator tanggal via OpenAI Responses API (`OPENAI_VISION_MODEL`).
+2. **Text-First OCR & Post-Stance Isolation (Two-Stage Pipeline)**
+   - **Stage A (Visual OCR ONLY)** via OpenAI Responses API (`OPENAI_VISION_MODEL`): membaca teks headline (termasuk tulisan besar di atas foto sampul), overlay grafis, caption, handle publik, tanggal unggahan, dan koordinat kotak teks (*OCR Text Highlight*). Foto sampul/wajah/seragam tidak pernah dijadikan penentu kebenaran.
+   - **Stage B (Text-Only Claim Normalization)** via OpenAI (`OPENAI_SEARCH_MODEL`): menormalisasi proposisi faktual murni dari teks hasil OCR tanpa input gambar, sambil menjaga pemisahan makna antara headline vs caption (*resmi mengajukan* vs *menyampaikan niat*).
    - Memisahkan **5 sikap postingan**: `asserting_claim`, `debunking_claim`, `quoting_claim`, `neutral_discussion`, dan `unclear_context` sehingga akun pemeriksa fakta (contoh `@vereditum`) tidak pernah dilabeli sebagai pembuat hoaks.
 3. **Live Web Evidence Search & Fact Check API**
    - Penelusuran web langsung menggunakan OpenAI Responses API `web_search` (`OPENAI_SEARCH_MODEL`) serta integrasi opsional **Google Fact Check Tools API** (`FACTCHECK_API_KEY`).
@@ -33,8 +34,8 @@ Dibangun untuk **Kartika Cyber Hackathon 2026 — Kategori Siber Sosial** (MVP T
 - **Framework**: Next.js 16 (App Router) + TypeScript
 - **Styling & UI**: Tailwind CSS v4 + shadcn/ui (Radix UI) + Lucide Icons
 - **AI & Search**: OpenAI Responses API (Vision + `web_search`), Google Fact Check Tools API
-- **Validation & Security**: Zod, custom binary EXIF stripper, SSRF URL guard, sliding-window IP rate limiter
-- **Testing**: Vitest (unit & API integration) + Playwright (end-to-end UI)
+- **Validation & Security**: Zod, custom binary EXIF stripper, strict domain-tier matcher, SSRF URL guard, trusted-proxy & optional Upstash Redis distributed rate limiter, global hourly API credit cap, and generic sanitized API error responses
+- **Testing**: Vitest (unit, pipeline hardening & API integration) + Playwright (end-to-end UI)
 
 ---
 
@@ -69,6 +70,11 @@ Variabel pada `.env.local`:
 | `OPENAI_VISION_MODEL` | Opsional | Membaca dan menganalisis screenshot via OpenAI Responses API vision | `gpt-5.4-mini` |
 | `OPENAI_SEARCH_MODEL` | Opsional | Mencari bukti dan klarifikasi melalui internet via OpenAI `web_search` | `gpt-5.4-mini` |
 | `FACTCHECK_API_KEY` | Opsional | Google Fact Check Tools API key | Kosong (fallback ke `web_search`) |
+| `ANALYZE_RATE_LIMIT_MAX` | Opsional | Maksimum permintaan per klien per jendela waktu | `12` / `60000` ms |
+| `ANALYZE_GLOBAL_HOURLY_LIMIT` | Opsional | Batas maksimum eksekusi AI berbayar per jam (proteksi biaya) | `60` |
+| `ANALYZE_PIPELINE_DEADLINE_MS` | Opsional | Batas eksekusi menyeluruh di bawah `maxDuration = 60` | `48000` |
+| `TRUSTED_PROXY_MODE` | Opsional | Mode header proxy tepercaya (`none` / `vercel` / `cloudflare` / `forwarded-rightmost`) | `none` (`vercel` otomatis di Vercel) |
+| `UPSTASH_REDIS_REST_URL` / `TOKEN` | Opsional | Sinkronisasi rate limit terdistribusi multi-instance Vercel | Kosong (in-memory fallback) |
 
 > Catatan: Apabila `OPENAI_API_KEY` belum diisi atau tidak aktif, antarmuka tetap berjalan penuh dalam **DEMO MODE** menggunakan 6 dataset fixture yang dilabeli jelas di [tests/fixtures/cases.ts](tests/fixtures/cases.ts), sementara endpoint live `/api/analyze` mengembalikan `503 OPENAI_NOT_CONFIGURED` tanpa memalsukan data.
 

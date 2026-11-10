@@ -1,78 +1,74 @@
 # ARCHITECTURE — KLAIMSCAN AI
 
-Dokumen ini menjelaskan arsitektur full-stack, alur pemrosesan 6 tahap, isolasi data tidak tepercaya (*prompt-injection & SSRF defense*), serta batasan privasi pada **KLAIMSCAN AI**.
+Dokumen ini menjelaskan arsitektur full-stack, alur pemrosesan 6 tahap, batas kepercayaan (*trust boundaries*), serta kontrol keamanan & privasi pada **KLAIMSCAN AI**.
 
 ---
 
 ## 1. Gambaran Umum Sistem
 
-Aplikasi berjalan sebagai **monolit full-stack Next.js App Router** sehingga API key (`OPENAI_API_KEY`, `FACTCHECK_API_KEY`) tidak pernah keluar dari runtime Node.js server.
+Aplikasi berjalan sebagai **monolit full-stack Next.js App Router** sehingga API key (`OPENAI_API_KEY`, `FACTCHECK_API_KEY`, `UPSTASH_REDIS_REST_TOKEN`) tidak pernah keluar dari runtime Node.js server.
 
 ```mermaid
 flowchart LR
-    U["Browser SOC UI"] -->|"Multipart PNG/JPG/WEBP <= 5MB"| API["POST /api/analyze (Node.js)"]
-    API --> RL["Rate Limiter & Size Guard"]
+    U["Browser SOC UI (+ Interactive OCR Highlight)"] -->|"Multipart PNG/JPG/WEBP <= 5MB"| API["POST /api/analyze (Node.js)"]
+    API --> RL["Access Gate, Trusted IP & Distributed Rate/Credit Guard"]
     RL --> S1["01 Image Sanitizer (Magic Bytes + Strip EXIF + SHA-256)"]
-    S1 --> S2["02 Vision Extractor (Post Stance + Claim)"]
-    S2 --> S3A["03a OpenAI web_search"]
-    S2 --> S3B["03b Google Fact Check API (Opsional)"]
-    S3A --> UG["URL Guard (Anti-SSRF) & Deduplicator"]
+    S1 --> S2A["02A Vision OCR Only (Headline, Overlay, Caption, Coords)"]
+    S2A --> S2B["02B Text-Only Claim Normalizer (Zero Image Input)"]
+    S2B --> S3A["03a OpenAI web_search"]
+    S2B --> S3B["03b Google Fact Check API (Opsional)"]
+    S3A --> UG["URL Guard (Anti-SSRF), Strict Domain Trust & Deduplicator"]
     S3B --> UG
-    UG --> S4["04 Evidence Comparator (Untrusted Tagging)"]
-    S4 --> S5["05 Deterministic Verdict Engine"]
+    UG --> S4["04 Evidence Comparator (Text Proposition + Temporal + Visual Exclusion)"]
+    S4 --> S5["05 Deterministic Verdict Engine (Text-First Corroboration)"]
     S5 --> S6["06 Public Origin Trace & Case Report"]
     S6 -->|"NDJSON Progress + Final Report"| U
 ```
 
 ---
 
-## 2. Pemisahan Tanggung Jawab Pipeline (6 Tahap)
+## 2. Pemisahan Tanggung Jawab Pipeline (6 Tahap Text-First & Batas Waktu Menyeluruh)
+
+Seluruh eksekusi dikawal oleh *root deadline controller* (`ANALYZE_PIPELINE_DEADLINE_MS`, default `48.000 ms` di bawah `maxDuration = 60` Vercel) yang mewariskan sisa anggaran waktu dan `AbortSignal` ke tiap tahap.
 
 ### 01 — Image Processing (`src/lib/image/sanitize.ts`)
-- Menolak file melebihi `5 * 1024 * 1024` bytes (`MAX_IMAGE_BYTES`) di browser maupun server.
+- Menolak file melebihi `5 * 1024 * 1024` bytes (`5 MB` / `MAX_IMAGE_BYTES`) di browser maupun server.
 - Memeriksa **magic bytes** asli untuk PNG (`89 50 4E 47`), JPEG (`FF D8 FF`), dan WebP (`RIFF....WEBP`) sebelum diproses.
-- Menghapus segmen metadata berisiko privasi di memori:
-  - PNG: menghapus segmen `eXIf`, `tEXt`, `zTXt`, `iTXt`, `pHYs`, `tIME`.
-  - JPEG: menghapus `APP1` (EXIF/XMP) s.d. `APP15` dan komentar `COM`.
-  - WebP: menghapus chunk `EXIF`/`XMP ` serta mereset bit flag terkait pada header `VP8X`.
-- Menghitung **SHA-256** dari gambar bersih. Tidak ada penyimpanan disk atau object storage permanen (`persistedOnServer: false`).
+- Menghapus segmen metadata berisiko privasi di memori (`eXIf`, `tEXt`, `APP1`, `VP8X` EXIF/XMP).
+- Menghitung **SHA-256** dari gambar bersih tanpa penyimpanan permanen (`persistedOnServer: false`).
 
-### 02 — Vision Claim Extraction (`src/lib/pipeline/claim-extractor.ts`)
-- Menggunakan `client.responses.parse` dengan skema **Zod** ketat (`ClaimExtractionZodSchema`) terhadap model dari `OPENAI_VISION_MODEL`.
-- Mengekstrak **klaim faktual** (`primaryClaim`, `secondaryClaims`) sekaligus memisahkan **5 kategori sikap postingan (`postStance`)**:
-  - `asserting_claim`
-  - `debunking_claim` (contoh akun `@vereditum` yang sedang membantah hoaks)
-  - `quoting_claim`
-  - `neutral_discussion`
-  - `unclear_context`
-- URL yang terbaca pada screenshot dilewatkan ke `normalizeVisiblePostUrl` → `sanitizePublicEvidenceUrl` untuk mencegah skema berbahaya (`javascript:`, `file:`) atau host privat masuk ke laporan.
+### 02 — Text-First Two-Stage OCR & Claim Extraction (`src/lib/pipeline/claim-extractor.ts`)
+- **Stage A (`extractOcrFromScreenshot` — Vision OCR ONLY)**: satu-satunya tahap yang menerima `base64DataUrl`. Membaca teks terlihat termasuk **teks/headline besar yang menempel DI ATAS foto sampul**, `extractedHeadline`, `graphicOverlayTexts`, `extractedCaption` (`captionTruncated`), publisher/handle publik, tanggal unggahan, catatan klarifikasi, serta koordinat kotak teks `ocrRegions` (0–1000) untuk *OCR Text Highlight* interaktif. Dilarang menilai wajah tokoh, seragam, latar, atau keaslian foto sampul.
+- **Stage B (`extractClaimsFromOcrText` — Text-Only Normalization)**: hanya menerima JSON teks hasil OCR (**nol input gambar**). Menghasilkan `normalizedClaims` terstruktur (`subject`, `predicateAction`, `objectTarget`, `eventDate`, `legalOrAdministrativeStatus`) serta `atomicClaims` berbasis teks (`main_event`, `formal_legal_status`, `time_and_location`, `person_and_role`, `caption_context`) tanpa `media_authenticity`. Menjaga perbedaan semantik antara headline dan caption (mis. `"resmi ajukan pengunduran diri"` vs `"menyampaikan niat mengundurkan diri"`). Apabila OCR tidak memuat teks faktual terbaca (`hasReadableFactualText === false`), pipeline langsung menetapkan `UNVERIFIED` tanpa menebak.
+- Memisahkan **proposisi klaim faktual (`primaryClaim`)** dari **5 kategori sikap postingan (`postStance`)**: `asserting_claim`, `debunking_claim`, `quoting_claim`, `neutral_discussion`, dan `unclear_context`.
+- URL yang terbaca pada screenshot dilewatkan ke `normalizeVisiblePostUrl` → `sanitizePublicEvidenceUrl`.
 
-### 03 — Live Evidence Retrieval (`src/lib/pipeline/evidence-retriever.ts`)
-- Menjalankan pencarian paralel (`Promise.allSettled`):
-  1. **Google Fact Check Tools API** (jika `FACTCHECK_API_KEY` tersedia; timeout 8 detik).
-  2. **OpenAI Responses API `web_search`** (timeout 25 detik; menggunakan `include: ["web_search_call.action.sources"]` serta `url_citation`).
-- Mengklasifikasikan tingkat otoritas domain (`official_government`, `fact_checker`, `credible_media`, `public_source`).
-- Melakukan deduplikasi berbasis URL yang telah dibersihkan parameter pelacakan (`utm_*`, `fbclid`, `gclid`, `igsh`) dan difilter oleh `url-guard.ts`.
+### 03 — Live Evidence Retrieval & Strict Source Trust (`src/lib/pipeline/evidence-retriever.ts`)
+- Menjalankan pencarian paralel seimbang (`Promise.allSettled`):
+  1. **Google Fact Check Tools API** (`timeout <= 8s`).
+  2. **OpenAI Responses API `web_search`** (`timeout <= 25s`), mengekstrak kutipan bersentuhan batas kalimat lengkap (*sentence-aware excerpt*) agar konteks berita maupun bantahan tidak terpotong di tengah kata.
+- **Pencocokan Otoritas Domain Ketat (`classifySourceTier`)**:
+  - Menggunakan hostname tervalidasi dari URL tujuan (`normalizeHostname`) dengan pencocokan eksak atau subdomain valid (`matchesTrustedDomain`), menolak *embedded substring*, *punycode* IDN (`xn--`), *userinfo* `@`, maupun path seperti `/hoaks` pada domain sembarang.
+  - Subdomain UGC (`forum.`, `blog.`, `community.`) di portal berita tetap diturunkan menjadi `public_source`.
+  - Jalur `/cek-fakta` hanya elevating ke `fact_checker` apabila berada pada hostname media terkurasi.
 
 ### 04 — Evidence Comparison (`src/lib/pipeline/evidence-comparator.ts`)
-- Mengevaluasi tiap kandidat terhadap `primaryClaim` saja (terpisah dari `postStance`), mengklasifikasikan relasi ke `supporting`, `contradicting`, `partial_context`, atau `irrelevant`.
-- **Anti-halusinasi ID**: hasil evaluasi model disaring dengan `candidateIds` sehingga LLM tidak pernah dapat menyuntikkan URL fiktif atau memalsukan sitasi.
-- Mengakomodasi sinyal waktu kedaluwarsa (`mentionsOutdatedContext`) dan fallback otomatis ke `textualRating` dari Google Fact Check API apabila evaluasi LLM mengalami gangguan/timeout.
+- Mengevaluasi tiap kandidat terhadap proposisi tekstual yang sesuai (`evaluatedAtomicClaimId` + `targetAspect`: `event_occurrence`, `official_legal_status`, `text_claim`, serta penanda eksklusi `image_authenticity`).
+- **Verifikasi Temporal Deterministik (`temporalStatus`)**: mengekstrak tanggal artikel dari teks/URL (`20261110...`, ISO, DD Bulan YYYY) dan mendiskualifikasi klarifikasi lama (`historical_debunk`) agar debunk kejadian lampau (mis. 12 Oktober 2026 atas video 2024) tidak pernah membantah perkembangan tanggal baru (mis. 10 November 2026).
+- **Eksklusi Klarifikasi Foto Sampul**: klarifikasi yang semata-mata menguji keaslian foto/visual sampul (`image_authenticity` / `isVisualAuthenticityCandidate`) dipetakan sebagai `relation = "irrelevant"` dengan alasan transparan sehingga foto ilustrasi palsu tidak pernah membatalkan peristiwa berita tekstual yang memang terjadi.
+- Halaman hasil penelusuran mentah tanpa kutipan isi artikel (`isQueryPlaceholderSnippet`) serta evaluasi `irrelevant` tidak pernah memengaruhi verdict maupun `outdatedSignalDetected`.
+- Jika sisa waktu pipeline `< 3s` sebelum batas `48s`, komparator melakukan degradasi aman ke *deterministic fallback* tervalidasi proposisi, waktu, & aspek (`doesCandidateMatchProposition`).
 
-### 05 — Deterministic Verdict Engine (`src/lib/pipeline/verdict-engine.ts`)
-- Menghitung status akhir (`FALSE`, `TRUE`, `MISLEADING`, `OUTDATED`, `UNVERIFIED`) berdasarkan bobot sumber terverifikasi:
-  - `official_government`: `3.0`
-  - `fact_checker`: `2.5`
-  - `credible_media`: `1.5`
-  - `public_source`: `1.0`
-- **Tanpa angka confidence buatan**: engine tidak mengeluarkan nilai probabilitas acak dari LLM.
-- **Aturan default aman**: bila klaim tidak dapat diuji atau tidak ada bukti resmi/kredibel yang memadai (termasuk hanya 1 `public_source` tanpa konfirmasi), verdict ditetapkan `UNVERIFIED`.
-- Menyimpan `postClassification` secara terpisah agar postingan pembantah (*debunking*) tidak disalahkan sebagai pencipta disinformasi.
+### 05 — Deterministic Text-First Verdict Engine (`src/lib/pipeline/verdict-engine.ts`)
+- Mengecualikan seluruh sumber berstatus `irrelevant` maupun `image_authenticity`.
+- Menghasilkan **Atomic Assessments & Qualified Status Labels** murni berbasis teks (`EVENT CONFIRMED`, `OFFICIAL STATUS CONFIRMED`, `INTENTION CONFIRMED`, `FORMAL STATUS UNVERIFIED`) tanpa label keaslian foto (`VIRAL PHOTO FALSE` dihapus). Bila niat/peristiwa utama terkonfirmasi (`TRUE`) tetapi langkah hukum/formal wajib belum terverifikasi (`UNVERIFIED`), verdict utama dijaga tetap `UNVERIFIED`.
+- **Koroborasi Per Penerbit Independen (`deduplicateByPublisher`)**: mengelompokkan sumber berdasarkan root domain registrable (`korlantas.polri.go.id` & `humas.polri.go.id` → `polri.go.id`; `nasional.kompas.com` & `www.kompas.com` → `kompas.com`) sehingga beberapa artikel dari satu penerbit hanya dihitung satu kali.
+- Menetapkan verdict (`FALSE`, `TRUE`, `MISLEADING`, `OUTDATED`, `UNVERIFIED`) berbasis bobot penerbit independen tanpa angka persentase confidence buatan LLM.
+- Satu sumber `public_source` atau beberapa artikel dari satu penerbit media saja tanpa otoritas resmi/`fact_checker` otomatis dijaga tetap `UNVERIFIED`.
+- Satu sumber pembantah terisolasi tidak mengesampingkan mayoritas bukti `partial_context` kredibel menjadi `FALSE`.
 
 ### 06 — Public Origin Trace & Report Generator (`src/lib/pipeline/public-trace.ts`, `report-generator.ts`)
-- Menyusun kronologi peristiwa publik dari indikator screenshot + tanggal bukti terindeks + timestamp verifikasi server.
-- Memisahkan bukti pendukung (`supportingEvidence`), bukti pembantah (`contradictingEvidence`), dan bukti konteks parsial (`partialContextEvidence`).
-- Menyematkan `privacyGuarantee`, `attributionCaveat`, dan `STANDARD_REPORT_LIMITATIONS` ke setiap laporan agar siap dicetak ke PDF melalui media stylesheet (`@media print` pada `src/app/globals.css`).
+- Menyusun kronologi peristiwa publik, memisahkan bukti mendukung/membantah/konteks parsial, dan menanamkan jaminan privasi & batasan metodologi siap cetak PDF (`@media print`).
 
 ---
 
@@ -80,9 +76,11 @@ flowchart LR
 
 | Ancaman | Kontrol Implementasi | Lokasi |
 | --- | --- | --- |
-| Kebocoran API key ke client | Resolusi env khusus server; `/api/health` hanya mengembalikan boolean status; redaksi token `sk-`/`AIza` pada pesan error | `src/lib/env.ts`, `src/lib/security/error-sanitizer.ts` |
-| Prompt injection di screenshot / halaman web | Pembatasan panjang + pembersihan karakter kontrol/tag XML (`sanitizeUntrustedText`), isolasi tag `<untrusted_analyst_notes>` dan `<untrusted_web_evidence>`, serta validasi Zod ketat | `src/lib/pipeline/claim-extractor.ts`, `src/lib/pipeline/evidence-comparator.ts` |
-| SSRF / URL internal berbahaya | Pemblokiran `localhost`, IPv4 privat/link-local (`127.0.0.0/8`, `10.0.0.0/8`, `169.254.169.254`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`), IPv6 lokal (`::1`, `fc/fd`, `fe80`), `.local`, `.internal`, kredensial tersisip, serta skema non-HTTP(S) | `src/lib/security/url-guard.ts` |
-| Upload berbahaya / payload besar | Penolakan payload multipart berlebih, pembatasan file 5 MB, verifikasi magic-bytes, dan zero disk persistence | `src/lib/image/sanitize.ts`, `src/app/api/analyze/route.ts` |
-| Abuse / DoS API berbiaya | Sliding-window per-IP rate limiter (15 permintaan/menit per IP) dengan header `Retry-After` dan batas timeout pada setiap panggilan eksternal | `src/lib/security/rate-limit.ts`, `src/app/api/analyze/route.ts` |
-| Hardening respons HTTP | Header keamanan `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, dan `Permissions-Policy` | `next.config.ts` |
+| Kebocoran API key / exception mentah | Resolusi env khusus server; error client generik dengan `errorId`; redaksi token `sk-`/`AIza`/`Bearer` di log server | `src/lib/env.ts`, `src/lib/security/error-sanitizer.ts` |
+| Spoofing kepercayaan sumber | Pencocokan hostname ketat exact/subdomain, daftar `TRUSTED_FACT_CHECK_DOMAINS` & `CURATED_CREDIBLE_MEDIA_DOMAINS`, penolakan path `/hoaks` pada domain sembarang | `src/lib/pipeline/evidence-retriever.ts` |
+| Salah klasifikasi rating fact-check tidak relevan | Guard `addressesSameProposition`, `matchesTimeContext`, `doesCandidateMatchProposition`, dan urutan prioritas negasi sebelum kata afirmatif | `src/lib/pipeline/evidence-comparator.ts` |
+| Inflasi bukti oleh penerbit tunggal | Deduplikasi per root publisher sebelum pembobotan verdict | `src/lib/pipeline/verdict-engine.ts` |
+| IP Header Spoofing & Abuse API berbayar | Trusted proxy mode (`none`/`vercel`/`cloudflare`/`forwarded-rightmost`), dukungan Upstash Redis REST terdistribusi, batas kuota AI global per jam, semaphore konkurensi, saklar akses/token opsional | `src/lib/security/rate-limit.ts`, `src/app/api/analyze/route.ts` |
+| SSRF / URL internal berbahaya | Pemblokiran `localhost`, IPv4/IPv6 privat/link-local, userinfo `@`, non-HTTP(S), serta penghapusan `utm_*`/`fbclid` | `src/lib/security/url-guard.ts` |
+| Upload berbahaya / payload besar | Pembatasan **5 MB** konsisten di UI & server, verifikasi magic-bytes, dan zero disk persistence | `src/lib/image/sanitize.ts`, `src/app/api/analyze/route.ts` |
+| Pipeline menggantung melewati batas `60s` | Batas eksekusi menyeluruh `48s` (`ANALYZE_PIPELINE_DEADLINE_MS`) + degradasi aman ke fallback | `src/lib/pipeline/orchestrator.ts` |
