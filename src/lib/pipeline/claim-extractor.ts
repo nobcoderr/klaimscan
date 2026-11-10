@@ -69,6 +69,31 @@ export const OcrTextRegionZodSchema = z.object({
   bbox: OcrBoundingBoxZodSchema,
 });
 
+export const StageAOcrTextRegionZodSchema = z.object({
+  id: z.string().min(2),
+  role: z.enum([
+    "headline",
+    "graphic_overlay",
+    "caption",
+    "publisher",
+    "date",
+    "debunk_note",
+  ]),
+  text: z.string().min(1),
+  xMin: z
+    .number()
+    .describe("Tepi kiri blok teks pada sumbu horizontal 0..1000 terhadap seluruh gambar."),
+  yMin: z
+    .number()
+    .describe("Tepi atas blok teks pada sumbu vertikal 0..1000 terhadap seluruh gambar."),
+  xMax: z
+    .number()
+    .describe("Tepi kanan blok teks pada sumbu horizontal 0..1000 terhadap seluruh gambar."),
+  yMax: z
+    .number()
+    .describe("Tepi bawah blok teks pada sumbu vertikal 0..1000 terhadap seluruh gambar."),
+});
+
 export const ScreenshotOcrZodSchema = z.object({
   extractedHeadline: z
     .string()
@@ -135,6 +160,14 @@ export const ScreenshotOcrZodSchema = z.object({
     .array(OcrTextRegionZodSchema)
     .describe(
       "Daftar blok koordinat kotak teks (0-1000) untuk headline, overlay grafis, caption, publisher, tanggal, dan catatan klarifikasi agar UI dapat menyorot teks di atas screenshot."
+    ),
+});
+
+export const StageAOcrZodSchema = ScreenshotOcrZodSchema.extend({
+  ocrRegions: z
+    .array(StageAOcrTextRegionZodSchema)
+    .describe(
+      "Daftar blok koordinat teks ketat [xMin, yMin, xMax, yMax] skala 0..1000 (diukur dari tepi gambar penuh atau skala penggaris terluar) untuk publisher, headline, overlay grafis, caption, dan catatan klarifikasi."
     ),
 });
 
@@ -396,12 +429,15 @@ export function sanitizeOptionalText(
   return cleaned;
 }
 
+const RULER_TICK_ONLY_RE = /^(?:\d{1,4}(?:\s+\d{1,4})*)$/;
+const STATUS_BAR_CLOCK_RE = /^\d{1,2}[:.]\d{2}$/;
+
 export function sanitizeDateIndicator(
   raw: string | null | undefined,
   maxLength = 80
 ): string | null {
   const cleaned = sanitizeOptionalText(raw, maxLength);
-  if (!cleaned) return null;
+  if (!cleaned || STATUS_BAR_CLOCK_RE.test(cleaned)) return null;
   const hasTemporalSignal =
     /\d/.test(cleaned) ||
     /\b(hari\s+ini|kemarin|besok|tadi|sekarang|lalu|baru\s+saja|januari|februari|maret|april|mei|juni|juli|agustus|september|oktober|november|desember|jan|feb|mar|apr|jun|jul|agu|agt|sep|okt|nov|des|senin|selasa|rabu|kamis|jumat|sabtu|minggu|today|yesterday|tomorrow|ago)\b/iu.test(
@@ -440,10 +476,10 @@ export function normalizeOcrRegions(regions: OcrTextRegion[]): OcrTextRegion[] {
   return regions
     .slice(0, 10)
     .map((region, idx) => {
-      const x = clampCoord(region.bbox.x, 0, 960);
-      const y = clampCoord(region.bbox.y, 0, 960);
-      const width = clampCoord(region.bbox.width, 24, 1000 - x);
-      const height = clampCoord(region.bbox.height, 24, 1000 - y);
+      const x = clampCoord(region.bbox.x, 0, 980);
+      const y = clampCoord(region.bbox.y, 0, 980);
+      const width = clampCoord(region.bbox.width, 16, 1000 - x);
+      const height = clampCoord(region.bbox.height, 14, 1000 - y);
       return {
         id: region.id || `OCR-${String(idx + 1).padStart(2, "0")}`,
         role: region.role,
@@ -451,7 +487,36 @@ export function normalizeOcrRegions(regions: OcrTextRegion[]): OcrTextRegion[] {
         bbox: { x, y, width, height },
       };
     })
-    .filter((r) => r.text.length > 0);
+    .filter(
+      (r) =>
+        r.text.length > 0 &&
+        !RULER_TICK_ONLY_RE.test(r.text) &&
+        !(r.role === "date" && STATUS_BAR_CLOCK_RE.test(r.text))
+    );
+}
+
+export function convertStageABoundsToOcrRegions(
+  regions: Array<z.infer<typeof StageAOcrTextRegionZodSchema>>
+): OcrTextRegion[] {
+  return normalizeOcrRegions(
+    regions.map((region, idx) => {
+      const left = clampCoord(Math.min(region.xMin, region.xMax), 0, 980);
+      const top = clampCoord(Math.min(region.yMin, region.yMax), 0, 980);
+      const right = clampCoord(Math.max(region.xMin, region.xMax), left + 16, 1000);
+      const bottom = clampCoord(Math.max(region.yMin, region.yMax), top + 14, 1000);
+      return {
+        id: region.id || `OCR-${String(idx + 1).padStart(2, "0")}`,
+        role: region.role,
+        text: region.text,
+        bbox: {
+          x: left,
+          y: top,
+          width: Math.max(16, right - left),
+          height: Math.max(14, bottom - top),
+        },
+      };
+    })
+  );
 }
 
 export function hasReadableFactualText(ocr: ScreenshotOcrResult): boolean {
@@ -544,6 +609,7 @@ export async function extractOcrFromScreenshot(params: {
   client: OpenAI;
   model: string;
   base64DataUrl: string;
+  hasCoordinateRulers?: boolean;
   timeoutMs?: number;
   signal?: AbortSignal;
 }): Promise<ScreenshotOcrResult> {
@@ -551,9 +617,21 @@ export async function extractOcrFromScreenshot(params: {
     client,
     model,
     base64DataUrl,
+    hasCoordinateRulers = false,
     timeoutMs = OCR_REQUEST_TIMEOUT_MS,
     signal: parentSignal,
   } = params;
+
+  const coordinateGuideRule = hasCoordinateRulers
+    ? [
+        "6. KOORDINAT PENGGARIS TERLUAR (WAJIB PRESISI): Screenshot dibingkai oleh penggaris skala cyan/putih (0..1000) di margin luar atas (sumbu X: 0..1000) dan margin luar kiri/kanan (sumbu Y: 0..1000).",
+        "   - Baca xMin, xMax langsung lurus ke atas menuju angka skala X terluar, dan yMin, yMax lurus ke kiri/kanan menuju angka skala Y terluar.",
+        "   - Buat bounding box KETAT tepat melingkupi tinta blok teks faktual (JANGAN masukkan area hitam kosong di bawah kartu).",
+        "   - ABAIKAN angka skala penggaris (0, 100, 200 ... 1000) di margin gelap luar gambar — JANGAN masukkan ke headline, transcript, atau ocrRegions!",
+      ].join("\n")
+    : [
+        "6. KOORDINAT KANVAS PENUH (0..1000): Ukur xMin, yMin, xMax, yMax relatif terhadap KESELURUHAN KANVAS GAMBAR (xMin=0 tepi kiri terluar, yMin=0 tepi atas terluar TERMASUK status bar gelap atas, yMax=1000 tepi bawah terluar). Buat kotak ketat melingkupi blok teks nyata, BUKAN terhadap kartu berita di tengah.",
+      ].join("\n");
 
   const systemPrompt = [
     "Anda adalah modul Stage-A OCR Ekstraksi Teks KLAIMSCAN AI (MODE TEXT-FIRST).",
@@ -562,10 +640,10 @@ export async function extractOcrFromScreenshot(params: {
     "ATURAN WAJIB STAGE A (PURE OCR ONLY):",
     "1. DILARANG menganalisis atau menebak fakta dari wajah tokoh, seragam, gedung, ekspresi, objek latar, atau apakah foto sampul asli/editan.",
     "2. WAJIB menyalin TEKS BESAR / HEADLINE / BANNER yang menempel DI ATAS FOTO SAMPUL (taruh di 'extractedHeadline' dan/atau 'graphicOverlayTexts').",
-    "3. Pisahkan 'extractedCaption' (teks caption di bawah/samping foto) secara terpisah dari 'extractedHeadline'. Set captionTruncated=true bila terpotong '...' / 'selengkapnya'.",
+    "3. Pisahkan 'extractedCaption' (teks caption/akun media sosial di bawah headline atau di bawah foto) secara terpisah dari 'extractedHeadline'. Set captionTruncated=true bila terpotong '...' / 'selengkapnya'.",
     "4. Catat 'clarificationOrDebunkText' bila postingan memuat stempel/kalimat klarifikasi seperti 'HOAKS', 'TIDAK BENAR', atau koreksi akun cek-fakta.",
-    "5. Jangan pernah memasukkan tombol UI (Suka, Bagikan, Ikuti, Komentar, Disukai oleh...) sebagai headline atau caption. Jangan ambil jam status bar ponsel sebagai 'visiblePublicationDate'.",
-    "6. Sertakan koordinat kotak teks normalisasi 0-1000 pada 'ocrRegions' untuk setiap blok teks penting agar UI dapat menyorotnya saat diklik.",
+    "5. Jangan pernah memasukkan tombol UI ('Suka', 'Bagikan', 'Ikuti', 'Tambahkan komentar...', 'Disukai oleh...') atau jam status bar ponsel ('22.39', '09:41') sebagai headline, caption, tanggal, atau ocrRegions.",
+    coordinateGuideRule,
     "7. Untuk kolom bertipe nullable yang datanya tidak ditemukan, wajib kembalikan nilai JSON null — JANGAN pernah menulis karakter ':', '/', '.', atau ':null'.",
   ].join("\n");
 
@@ -585,7 +663,9 @@ export async function extractOcrFromScreenshot(params: {
             content: [
               {
                 type: "input_text",
-                text: "Baca seluruh teks terlihat pada screenshot postingan media sosial ini ke dalam kolom OCR terstruktur (headline, teks grafis di atas foto, caption, nama media/akun, tanggal unggahan, dan bounding box 0-1000). Abaikan isi visual foto sampul selain tulisan di atasnya.",
+                text: hasCoordinateRulers
+                  ? "Baca teks faktual pada screenshot postingan di dalam bingkai penggaris (abaikan angka skala penggaris di luar gambar), lalu tentukan koordinat ketat xMin, yMin, xMax, yMax (0..1000) yang sejajar dengan garis tick skala terluar."
+                  : "Baca seluruh teks terlihat pada screenshot postingan media sosial ini ke dalam kolom OCR terstruktur (headline, teks grafis di atas foto, caption, nama media/akun, tanggal unggahan, dan bounding box xMin, yMin, xMax, yMax skala 0-1000 terhadap kanvas penuh). Abaikan isi visual foto sampul selain tulisan di atasnya.",
               },
               {
                 type: "input_image",
@@ -596,7 +676,7 @@ export async function extractOcrFromScreenshot(params: {
           },
         ],
         text: {
-          format: zodTextFormat(ScreenshotOcrZodSchema, "screenshot_ocr"),
+          format: zodTextFormat(StageAOcrZodSchema, "screenshot_ocr"),
         },
       },
       { signal }
@@ -606,40 +686,59 @@ export async function extractOcrFromScreenshot(params: {
       throw new Error("Model OCR tidak mengembalikan teks terstruktur.");
     }
 
-    const parsed = ScreenshotOcrZodSchema.parse(response.output_parsed);
-    const cleanedHeadline = sanitizeOptionalText(parsed.extractedHeadline, 420);
-    const cleanedCaption = sanitizeOptionalText(parsed.extractedCaption, 900);
+    const rawParsed = response.output_parsed as Record<string, unknown>;
+    const rawRegions = Array.isArray(rawParsed.ocrRegions)
+      ? (rawParsed.ocrRegions as Array<Record<string, unknown>>)
+      : [];
+    const usesLegacyBbox = rawRegions.some(
+      (r) => r && typeof r === "object" && "bbox" in r
+    );
+
+    const parsedBase = usesLegacyBbox
+      ? ScreenshotOcrZodSchema.parse(response.output_parsed)
+      : StageAOcrZodSchema.parse(response.output_parsed);
+
+    const normalizedRegions = usesLegacyBbox
+      ? normalizeOcrRegions(
+          (parsedBase as z.infer<typeof ScreenshotOcrZodSchema>).ocrRegions ?? []
+        )
+      : convertStageABoundsToOcrRegions(
+          (parsedBase as z.infer<typeof StageAOcrZodSchema>).ocrRegions ?? []
+        );
+
+    const cleanedHeadline = sanitizeOptionalText(parsedBase.extractedHeadline, 420);
+    const cleanedCaption = sanitizeOptionalText(parsedBase.extractedCaption, 900);
 
     return {
       extractedHeadline: cleanedHeadline,
-      graphicOverlayTexts: (parsed.graphicOverlayTexts ?? [])
+      graphicOverlayTexts: (parsedBase.graphicOverlayTexts ?? [])
         .map((t) => sanitizeOptionalText(t, 280))
         .filter((t): t is string => Boolean(t)),
       extractedCaption: cleanedCaption,
-      captionTruncated: Boolean(cleanedCaption) && parsed.captionTruncated,
+      captionTruncated: Boolean(cleanedCaption) && parsedBase.captionTruncated,
       publisherOrAccountName: sanitizeOptionalText(
-        parsed.publisherOrAccountName,
+        parsedBase.publisherOrAccountName,
         140
       ),
       visibleAccountHandle: sanitizeOptionalText(
-        parsed.visibleAccountHandle,
+        parsedBase.visibleAccountHandle,
         100
       ),
-      visiblePostUrl: normalizeVisiblePostUrl(parsed.visiblePostUrl),
+      visiblePostUrl: normalizeVisiblePostUrl(parsedBase.visiblePostUrl),
       visiblePublicationDate: sanitizeDateIndicator(
-        parsed.visiblePublicationDate,
+        parsedBase.visiblePublicationDate,
         80
       ),
       clarificationOrDebunkText: sanitizeOptionalText(
-        parsed.clarificationOrDebunkText,
+        parsedBase.clarificationOrDebunkText,
         400
       ),
       rawTranscript:
-        sanitizeOptionalText(parsed.rawTranscript, 1800) ||
+        sanitizeOptionalText(parsedBase.rawTranscript, 1800) ||
         [cleanedHeadline, cleanedCaption].filter(Boolean).join("\n"),
-      language: parsed.language || "id",
-      platform: parsed.platform,
-      ocrRegions: normalizeOcrRegions(parsed.ocrRegions ?? []),
+      language: parsedBase.language || "id",
+      platform: parsedBase.platform,
+      ocrRegions: normalizedRegions,
     };
   } finally {
     cleanup();
@@ -879,6 +978,7 @@ export async function extractClaimFromScreenshot(params: {
   model: string;
   textModel?: string;
   base64DataUrl: string;
+  ocrGuideDataUrl?: string;
   analystNotes?: string;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -888,6 +988,7 @@ export async function extractClaimFromScreenshot(params: {
     model,
     textModel,
     base64DataUrl,
+    ocrGuideDataUrl,
     analystNotes,
     timeoutMs = VISION_REQUEST_TIMEOUT_MS,
     signal,
@@ -898,7 +999,8 @@ export async function extractClaimFromScreenshot(params: {
   const ocr = await extractOcrFromScreenshot({
     client,
     model,
-    base64DataUrl,
+    base64DataUrl: ocrGuideDataUrl ?? base64DataUrl,
+    hasCoordinateRulers: Boolean(ocrGuideDataUrl),
     timeoutMs: ocrBudgetMs,
     signal,
   });

@@ -20,8 +20,8 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Allow multipart boundary + optional analyst notes on top of 5 MB max image
-const MAX_MULTIPART_CONTENT_LENGTH = 7 * 1024 * 1024;
+// Allow multipart boundary + optional OCR ruler guide + analyst notes on top of 5 MB max image
+const MAX_MULTIPART_CONTENT_LENGTH = 9 * 1024 * 1024;
 
 function buildRateLimitHeaders(rate: {
   limit: number;
@@ -142,6 +142,14 @@ export async function POST(request: Request) {
 
   const rawArrayBuffer = await fileEntry.arrayBuffer();
   const rawBuffer = Buffer.from(rawArrayBuffer);
+  const ocrGuideEntry = formData.get("ocrGuide");
+  const ocrGuideFile =
+    ocrGuideEntry instanceof File && ocrGuideEntry.size > 0
+      ? ocrGuideEntry
+      : undefined;
+  const ocrGuideBuffer = ocrGuideFile
+    ? Buffer.from(await ocrGuideFile.arrayBuffer())
+    : undefined;
   const analystNotesRaw = formData.get("analystNotes");
   const analystNotes =
     typeof analystNotesRaw === "string" && analystNotesRaw.trim()
@@ -151,6 +159,13 @@ export async function POST(request: Request) {
   // Validate image & strip metadata synchronously first so invalid files fail fast with 400 before consuming AI credit quotas
   try {
     sanitizeScreenshotBuffer(rawBuffer, fileEntry.name, fileEntry.type);
+    if (ocrGuideBuffer && ocrGuideFile) {
+      sanitizeScreenshotBuffer(
+        ocrGuideBuffer,
+        ocrGuideFile.name,
+        ocrGuideFile.type
+      );
+    }
   } catch (error) {
     if (error instanceof ImageValidationError) {
       return NextResponse.json(
@@ -230,6 +245,9 @@ export async function POST(request: Request) {
         rawBuffer,
         fileName: fileEntry.name,
         declaredMimeType: fileEntry.type,
+        ocrGuideBuffer,
+        ocrGuideFileName: ocrGuideFile?.name,
+        ocrGuideMimeType: ocrGuideFile?.type,
         analystNotes,
         deadlineMs: env.pipelineDeadlineMs,
         signal: request.signal,
@@ -280,6 +298,9 @@ export async function POST(request: Request) {
           rawBuffer,
           fileName: fileEntry.name,
           declaredMimeType: fileEntry.type,
+          ocrGuideBuffer,
+          ocrGuideFileName: ocrGuideFile?.name,
+          ocrGuideMimeType: ocrGuideFile?.type,
           analystNotes,
           deadlineMs: env.pipelineDeadlineMs,
           signal: request.signal,

@@ -109,6 +109,115 @@ function createSamplePngFile(): Promise<File> {
   });
 }
 
+async function createRulerGuideFile(file: File): Promise<File | null> {
+  if (typeof document === "undefined") return null;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const el = new window.Image();
+      el.onload = () => resolve(el);
+      el.onerror = () => reject(new Error("Image load failed"));
+      el.src = objectUrl;
+    });
+
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    if (!natW || !natH) return null;
+
+    const maxEdge = Math.max(natW, natH);
+    const minEdge = Math.min(natW, natH);
+    let scale = 1;
+    if (minEdge < 420) {
+      scale = Math.min(2.2, 420 / minEdge);
+    }
+    if (maxEdge * scale > 1080) {
+      scale = 1080 / maxEdge;
+    }
+
+    const iw = Math.max(120, Math.round(natW * scale));
+    const ih = Math.max(120, Math.round(natH * scale));
+    const padL = 56;
+    const padT = 38;
+    const padR = 28;
+    const padB = 20;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = padL + iw + padR;
+    canvas.height = padT + ih + padB;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.fillStyle = "#0B1220";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, padL, padT, iw, ih);
+
+    ctx.strokeStyle = "#38BDF8";
+    ctx.lineWidth = 1.25;
+    ctx.fillStyle = "#F8FAFC";
+    ctx.font = "bold 11px monospace";
+    ctx.textBaseline = "middle";
+
+    for (let t = 0; t <= 1000; t += 50) {
+      const yy = padT + (t / 1000) * ih;
+      const isMajor = t % 100 === 0;
+      const tickLen = isMajor ? 10 : 5;
+      ctx.beginPath();
+      ctx.moveTo(padL - tickLen, yy);
+      ctx.lineTo(padL, yy);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(padL + iw, yy);
+      ctx.lineTo(padL + iw + (isMajor ? 8 : 4), yy);
+      ctx.stroke();
+
+      if (isMajor) {
+        ctx.textAlign = "right";
+        ctx.fillText(String(t), padL - 13, yy);
+      }
+    }
+
+    for (let t = 0; t <= 1000; t += 50) {
+      const xx = padL + (t / 1000) * iw;
+      const isMajor = t % 100 === 0;
+      const tickLen = isMajor ? 10 : 5;
+      ctx.beginPath();
+      ctx.moveTo(xx, padT - tickLen);
+      ctx.lineTo(xx, padT);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(xx, padT + ih);
+      ctx.lineTo(xx, padT + ih + (isMajor ? 7 : 4));
+      ctx.stroke();
+
+      if (isMajor) {
+        ctx.textAlign = "center";
+        ctx.fillText(String(t), xx, padT - 20);
+      }
+    }
+
+    const pngBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/png")
+    );
+    if (!pngBlob) return null;
+
+    if (pngBlob.size <= 3_500_000) {
+      return new File([pngBlob], "ocr-guide.png", { type: "image/png" });
+    }
+
+    const jpgBlob = await new Promise<Blob | null>((resolve) =>
+      canvas.toBlob((b) => resolve(b), "image/jpeg", 0.9)
+    );
+    if (!jpgBlob || jpgBlob.size > 4_000_000) return null;
+    return new File([jpgBlob], "ocr-guide.jpg", { type: "image/jpeg" });
+  } catch {
+    return null;
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 interface DropzoneScannerProps {
   serverConfig: ServerConfigStatus;
   onAnalysisComplete: (
@@ -214,6 +323,10 @@ export function DropzoneScanner({
     try {
       const formData = new FormData();
       formData.append("file", selectedFile);
+      const rulerGuide = await createRulerGuideFile(selectedFile);
+      if (rulerGuide) {
+        formData.append("ocrGuide", rulerGuide);
+      }
       if (analystNotes.trim()) {
         formData.append("analystNotes", analystNotes.trim());
       }

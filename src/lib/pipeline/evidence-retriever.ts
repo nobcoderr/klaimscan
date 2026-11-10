@@ -633,8 +633,8 @@ export async function queryOpenAiWebSearch(params: {
     "1. Telusuri secara seimbang BAIK pemberitaan terkini media kredibel/siaran pers lembaga resmi (Polri, Istana/Mensesneg, DPR, Bakom, BI, Detik, Kompas, CNN Indonesia, CNBC, ANTARA, AP, BBC, Reuters, Tempo) MAUPUN artikel cek-fakta (Komdigi, TurnBackHoax, Mafindo, CekFakta).",
     "2. Fokus menguji KEBENARAN TEKS BERITA/PERISTIWA (jangan menggugurkan berita hanya karena klarifikasi foto ilustrasi/sampul editan).",
     "3. Prioritaskan memeriksa berita TERBARU sekitar indikator waktu klaim terlebih dahulu; jangan hanya mengandalkan artikel cek-fakta lama tanpa memeriksa perkembangan terbaru.",
-    "4. Tulis ringkasan temuan 4–6 sumber berbeda (bila tersedia). Awali setiap poin dengan [Tanggal Terbit YYYY-MM-DD atau Tahun] diikuti 1–2 kalimat fakta lengkap (subjek, status niat vs formal/hukum, dan kejelasan apakah sumber membahas peristiwa tekstual atau hanya foto sampul) sebelum sitasi URL.",
-    "5. JANGAN menambahkan kalimat tanya atau tawaran lanjutan di akhir jawaban (seperti 'Kalau Anda mau...').",
+    "4. Tulis daftar 4–6 sumber spesifik yang benar-benar membahas peristiwa/proposisi yang sama (bila tersedia). Awali setiap poin dengan [Tanggal Terbit YYYY-MM-DD atau Tahun] diikuti 1–2 kalimat fakta lengkap (subjek, status niat vs formal/hukum, dan apakah sumber membahas peristiwa tekstual atau hanya foto sampul) sebelum sitasi URL.",
+    "5. DILARANG menulis paragraf kesimpulan umum di akhir jawaban maupun mengutip tautan hoaks lain yang topiknya berbeda hanya karena sama kata kuncinya, dan JANGAN menambahkan kalimat tanya atau tawaran lanjutan.",
   ]
     .filter(Boolean)
     .join("\n");

@@ -236,6 +236,97 @@ function OcrHighlightViewer({
   const activeRegion =
     regions.find((r) => r.id === selectedRegionId) ?? regions[0] ?? null;
 
+  const viewportRef = React.useRef<HTMLDivElement>(null);
+  const imgRef = React.useRef<HTMLImageElement>(null);
+  const [viewportWidth, setViewportWidth] = React.useState(0);
+  const [naturalSize, setNaturalSize] = React.useState<{
+    src: string;
+    width: number;
+    height: number;
+  } | null>(null);
+
+  React.useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const innerW = Math.max(0, el.clientWidth - 16);
+      setViewportWidth(innerW);
+      const img = imgRef.current;
+      if (
+        screenshotPreviewUrl &&
+        img &&
+        img.complete &&
+        img.naturalWidth > 0 &&
+        img.naturalHeight > 0
+      ) {
+        setNaturalSize((prev) =>
+          prev &&
+          prev.src === screenshotPreviewUrl &&
+          prev.width === img.naturalWidth &&
+          prev.height === img.naturalHeight
+            ? prev
+            : {
+                src: screenshotPreviewUrl,
+                width: img.naturalWidth,
+                height: img.naturalHeight,
+              }
+        );
+      }
+    };
+
+    const rafId = requestAnimationFrame(measure);
+    if (typeof ResizeObserver === "undefined") {
+      return () => cancelAnimationFrame(rafId);
+    }
+    const observer = new ResizeObserver(() => {
+      measure();
+    });
+    observer.observe(el);
+    return () => {
+      cancelAnimationFrame(rafId);
+      observer.disconnect();
+    };
+  }, [screenshotPreviewUrl]);
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    if (!screenshotPreviewUrl) return;
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      setNaturalSize({
+        src: screenshotPreviewUrl,
+        width: img.naturalWidth,
+        height: img.naturalHeight,
+      });
+    }
+    if (viewportRef.current) {
+      setViewportWidth(Math.max(0, viewportRef.current.clientWidth - 16));
+    }
+  };
+
+  let frameStyle: React.CSSProperties | undefined;
+  if (
+    screenshotPreviewUrl &&
+    naturalSize &&
+    naturalSize.src === screenshotPreviewUrl &&
+    naturalSize.width > 0 &&
+    naturalSize.height > 0 &&
+    viewportWidth > 0
+  ) {
+    const MAX_PREVIEW_HEIGHT = 440;
+    const aspect = naturalSize.width / naturalSize.height;
+    let width = viewportWidth;
+    let height = width / aspect;
+    if (height > MAX_PREVIEW_HEIGHT) {
+      height = MAX_PREVIEW_HEIGHT;
+      width = height * aspect;
+    }
+    frameStyle = {
+      width: `${Math.round(width)}px`,
+      height: `${Math.round(height)}px`,
+    };
+  }
+
   return (
     <div className="flex flex-col justify-between rounded-xl border border-[#254159] bg-[#07111E]/85 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -252,45 +343,67 @@ function OcrHighlightViewer({
         </Badge>
       </div>
 
-      <div className="relative overflow-hidden rounded-lg border border-[#254159] bg-[#040B14]">
+      <div
+        ref={viewportRef}
+        className="relative flex w-full justify-center overflow-hidden rounded-lg border border-[#254159] bg-[#040B14] p-2"
+      >
         {screenshotPreviewUrl ? (
-          <div className="relative mx-auto w-full">
+          <div
+            style={frameStyle}
+            className={cn(
+              "relative shrink-0",
+              !frameStyle && "inline-block max-w-full"
+            )}
+          >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={imgRef}
               src={screenshotPreviewUrl}
               alt="Screenshot yang dianalisis dengan sorotan OCR"
-              className="block max-h-[340px] w-full object-contain"
+              onLoad={handleImageLoad}
+              className={
+                frameStyle
+                  ? "block h-full w-full select-none rounded-[2px]"
+                  : "block h-auto max-h-[440px] w-auto max-w-full select-none rounded-[2px]"
+              }
             />
-            {regions.map((region) => {
-              const isSelected = activeRegion?.id === region.id;
-              return (
-                <button
-                  key={region.id}
-                  type="button"
-                  onClick={() => onSelectRegion(region.id)}
-                  title={`${formatOcrRoleLabel(region.role)}: ${region.text}`}
-                  aria-label={`Sorot wilayah OCR ${formatOcrRoleLabel(region.role)}`}
-                  style={{
-                    left: `${(region.bbox.x / 10).toFixed(1)}%`,
-                    top: `${(region.bbox.y / 10).toFixed(1)}%`,
-                    width: `${(region.bbox.width / 10).toFixed(1)}%`,
-                    height: `${(region.bbox.height / 10).toFixed(1)}%`,
-                  }}
-                  className={cn(
-                    "absolute cursor-pointer rounded transition-all",
-                    isSelected
-                      ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 shadow-[0_0_20px_rgba(69,221,235,0.55)]"
-                      : "z-10 border border-[#34D399]/55 bg-[#34D399]/10 hover:border-[#45DDEB]"
-                  )}
-                >
-                  {isSelected && (
-                    <span className="absolute -top-5 left-0 whitespace-nowrap rounded bg-[#07111E]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#45DDEB] shadow">
-                      {formatOcrRoleLabel(region.role)}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+            {frameStyle &&
+              regions.map((region) => {
+                const isSelected = activeRegion?.id === region.id;
+                return (
+                  <button
+                    key={region.id}
+                    type="button"
+                    onClick={() => onSelectRegion(region.id)}
+                    title={`${formatOcrRoleLabel(region.role)}: ${region.text}`}
+                    aria-label={`Sorot wilayah OCR ${formatOcrRoleLabel(region.role)}`}
+                    style={{
+                      left: `${(region.bbox.x / 10).toFixed(1)}%`,
+                      top: `${(region.bbox.y / 10).toFixed(1)}%`,
+                      width: `${(region.bbox.width / 10).toFixed(1)}%`,
+                      height: `${(region.bbox.height / 10).toFixed(1)}%`,
+                    }}
+                    className={cn(
+                      "absolute cursor-pointer rounded transition-all",
+                      isSelected
+                        ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 shadow-[0_0_20px_rgba(69,221,235,0.55)]"
+                        : "z-10 border border-[#34D399]/55 bg-[#34D399]/10 hover:border-[#45DDEB]"
+                    )}
+                  >
+                    {isSelected && (
+                      <span
+                        className={cn(
+                          "pointer-events-none absolute whitespace-nowrap rounded bg-[#07111E]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#45DDEB] shadow",
+                          region.bbox.y < 85 ? "top-full mt-1" : "-top-5",
+                          region.bbox.x > 680 ? "right-0" : "left-0"
+                        )}
+                      >
+                        {formatOcrRoleLabel(region.role)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
           </div>
         ) : (
           <div className="relative aspect-[16/10] w-full bg-[#050E19]">

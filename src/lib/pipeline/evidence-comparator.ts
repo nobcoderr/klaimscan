@@ -564,8 +564,8 @@ export async function compareEvidenceAgainstClaim(params: {
               "3. PROSES FORMAL vs NIAT (HEADLINE vs CAPTION):",
               "   - Bila headline menyebut 'resmi mengajukan pengunduran diri' sementara caption/berita terkini mengonfirmasi 'menyampaikan niat mundur', maka pada klaim atomik niat/peristiwa ('main_event') berilah 'supporting', sedangkan pada klaim atomik status formal ('formal_legal_status') berilah 'partial_context' atau 'irrelevant'.",
               "4. JANGAN menurunkan berita/rilis resmi yang jelas mengonfirmasi penetapan tersangka atau peristiwa terhadap tokoh dimaksud menjadi 'partial_context' semata karena judul menyebut kelompok umum (mis. '3 jenderal polisi' padahal konteks/isi jelas mengacu pada tokoh utama).",
-              "5. 'irrelevant': halaman tidak memuat isi bukti nyata (hanya kueri pencarian), berbeda topik, hanya menguji foto sampul, atau klarifikasi lama yang tidak relevan.",
-              "Gunakan HANYA id sumber yang disediakan.",
+              "5. 'irrelevant': halaman tidak memuat isi bukti nyata (hanya kueri pencarian), berbeda topik/entitas pada slug URL maupun judul artikel (mis. artikel tentang 'pemutihan pajak gratis' tidak relevan untuk klaim spesifik 'tukang cukur/tunggakan pajak Swiss'), hanya menguji foto sampul, atau klarifikasi lama yang tidak relevan.",
+              "Gunakan HANYA id sumber yang disediakan dan pastikan 'addressesSameProposition' bernilai false jika judul/URL jelas membahas isu lain.",
             ].join("\n"),
           },
           {

@@ -65,6 +65,9 @@ export async function runAnalysisPipeline(params: {
   rawBuffer: Buffer;
   fileName: string;
   declaredMimeType?: string;
+  ocrGuideBuffer?: Buffer;
+  ocrGuideFileName?: string;
+  ocrGuideMimeType?: string;
   analystNotes?: string;
   deadlineMs?: number;
   signal?: AbortSignal;
@@ -142,6 +145,13 @@ export async function runAnalysisPipeline(params: {
       params.fileName,
       params.declaredMimeType
     );
+    const sanitizedGuide = params.ocrGuideBuffer
+      ? sanitizeScreenshotBuffer(
+          params.ocrGuideBuffer,
+          params.ocrGuideFileName || "ocr-guide.png",
+          params.ocrGuideMimeType
+        )
+      : null;
     markStep("image_processing", {
       status: "completed",
       durationMs: Date.now() - t0,
@@ -164,6 +174,7 @@ export async function runAnalysisPipeline(params: {
         model: env.visionModel,
         textModel: env.searchModel,
         base64DataUrl: sanitized.base64DataUrl,
+        ocrGuideDataUrl: sanitizedGuide?.base64DataUrl,
         analystNotes: params.analystNotes,
         timeoutMs: extractionBudgetMs,
         signal: pipelineController.signal,

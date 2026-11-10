@@ -5,6 +5,7 @@ import {
   buildFallbackAtomicClaims,
   buildFallbackNormalizedClaims,
   ClaimExtractionZodSchema,
+  convertStageABoundsToOcrRegions,
   extractClaimsFromOcrText,
   hasReadableFactualText,
   normalizeOcrRegions,
@@ -283,8 +284,50 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
     expect(sanitizeDateIndicator(":null")).toBeNull();
     expect(sanitizeDateIndicator("/")).toBeNull();
     expect(sanitizeDateIndicator(": Facebook")).toBeNull();
+    expect(sanitizeDateIndicator("22.39")).toBeNull();
+    expect(sanitizeDateIndicator("09:41")).toBeNull();
     expect(sanitizeDateIndicator("10 November 2026")).toBe("10 November 2026");
     expect(sanitizeDateIndicator("3 jam lalu")).toBe("3 jam lalu");
     expect(sanitizeDateIndicator("besok pagi")).toBe("besok pagi");
+  });
+
+  it("converts Stage A [xMin, yMin, xMax, yMax] bounds to clamped bbox and filters ruler ticks & phone bar clocks", () => {
+    const regions = convertStageABoundsToOcrRegions([
+      {
+        id: "R-1",
+        role: "publisher",
+        text: "SOCIOMIND NEWS",
+        xMin: 122,
+        yMin: 509,
+        xMax: 386,
+        yMax: 531,
+      },
+      {
+        id: "R-RULER",
+        role: "graphic_overlay",
+        text: "0 200 400 600 800 1000",
+        xMin: 0,
+        yMin: 0,
+        xMax: 1000,
+        yMax: 40,
+      },
+      {
+        id: "R-CLOCK",
+        role: "date",
+        text: "22.39",
+        xMin: 210,
+        yMin: 75,
+        xMax: 315,
+        yMax: 102,
+      },
+    ]);
+
+    expect(regions).toHaveLength(1);
+    expect(regions[0]).toEqual({
+      id: "R-1",
+      role: "publisher",
+      text: "SOCIOMIND NEWS",
+      bbox: { x: 122, y: 509, width: 264, height: 22 },
+    });
   });
 });
