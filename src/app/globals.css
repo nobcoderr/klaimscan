@@ -1,0 +1,165 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-soc-bg: #07111e;
+  --color-soc-surface: #0d2133;
+  --color-soc-surface-elevated: #112940;
+  --color-soc-cyan: #45ddeb;
+  --color-soc-verified: #34d399;
+  --color-soc-threat: #f87171;
+  --color-soc-warning: #fbbf24;
+  --color-soc-text: #f3f8ff;
+  --color-soc-muted: #8ba4c0;
+  --color-soc-border: #254159;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --background: #07111e;
+  --foreground: #f3f8ff;
+  --card: #0d2133;
+  --card-foreground: #f3f8ff;
+  --popover: #0d2133;
+  --popover-foreground: #f3f8ff;
+  --primary: #45ddeb;
+  --primary-foreground: #07111e;
+  --secondary: #112940;
+  --secondary-foreground: #f3f8ff;
+  --muted: #102438;
+  --muted-foreground: #8ba4c0;
+  --accent: #14324d;
+  --accent-foreground: #f3f8ff;
+  --destructive: #f87171;
+  --destructive-foreground: #07111e;
+  --border: #254159;
+  --input: #17324a;
+  --ring: #45ddeb;
+  --radius: 0.625rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    background-color: #07111e;
+    color: #f3f8ff;
+    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-heading {
+    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+}
+
+/* Subtle SOC grid texture */
+.soc-grid-bg {
+  background-image:
+    linear-gradient(to right, rgba(37, 65, 89, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(37, 65, 89, 0.16) 1px, transparent 1px);
+  background-size: 36px 36px;
+}
+
+/* Subtle scanner animation during AI image processing */
+@keyframes soc-scan-sweep {
+  0% {
+    top: 4%;
+    opacity: 0.35;
+  }
+  50% {
+    top: 90%;
+    opacity: 0.95;
+  }
+  100% {
+    top: 4%;
+    opacity: 0.35;
+  }
+}
+
+.animate-scan-line {
+  animation: soc-scan-sweep 2.4s ease-in-out infinite;
+}
+
+/* Clean Print / PDF export styling */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-surface {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    border-color: #cbd5e1 !important;
+    box-shadow: none !important;
+  }
+
+  .print-muted {
+    color: #475569 !important;
+  }
+
+  a {
+    color: #0369a1 !important;
+    text-decoration: underline !important;
+  }
+}
