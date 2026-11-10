@@ -699,6 +699,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
       trustedProxyMode: "none",
       upstashRedisRestUrl: undefined,
       upstashRedisRestToken: undefined,
+      requireDistributedQuota: false,
     });
 
     vi.spyOn(extractorModule, "extractClaimFromScreenshot").mockResolvedValue({

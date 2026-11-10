@@ -129,6 +129,7 @@ export interface ServerEnvConfig {
   trustedProxyMode: TrustedProxyMode;
   upstashRedisRestUrl?: string;
   upstashRedisRestToken?: string;
+  requireDistributedQuota: boolean;
 }
 
 export function getServerEnvConfig(): ServerEnvConfig {
@@ -143,6 +144,10 @@ export function getServerEnvConfig(): ServerEnvConfig {
 
   const upstashRedisRestUrl = resolveEnvValue("UPSTASH_REDIS_REST_URL");
   const upstashRedisRestToken = resolveEnvValue("UPSTASH_REDIS_REST_TOKEN");
+  const requireDistributedQuota = resolveBooleanEnv(
+    "ANALYZE_REQUIRE_DISTRIBUTED_QUOTA",
+    process.env.VERCEL === "1"
+  );
 
   return {
     openAiApiKey,
@@ -181,6 +186,7 @@ export function getServerEnvConfig(): ServerEnvConfig {
     ),
     upstashRedisRestUrl,
     upstashRedisRestToken,
+    requireDistributedQuota,
   };
 }
 
@@ -198,5 +204,6 @@ export function getServerConfigStatus(): ServerConfigStatus {
     distributedRateLimitConfigured: Boolean(
       cfg.upstashRedisRestUrl && cfg.upstashRedisRestToken
     ),
+    distributedQuotaRequired: cfg.requireDistributedQuota,
   };
 }

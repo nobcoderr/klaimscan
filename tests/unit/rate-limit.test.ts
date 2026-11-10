@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  ATOMIC_FIXED_WINDOW_LUA,
   checkRateLimit,
   consumeGlobalCreditQuota,
   enforceDistributedRateLimit,
@@ -94,25 +95,16 @@ describe("rate-limit, proxy trust hardening & API credit safeguards", () => {
     expect(normalizeValidatedIp("::ffff:203.0.113.10")).toBe("203.0.113.10");
   });
 
-  it("supports Upstash Redis REST distributed rate limit with graceful fallback", async () => {
-    let calls = 0;
-    const okFetch = (async () => {
-      calls += 1;
-      if (calls === 1) {
-        return new Response(
-          JSON.stringify([{ result: 1 }, { result: -1 }]),
-          { status: 200 }
-        );
-      }
-      if (calls === 2) {
-        return new Response(JSON.stringify([{ result: "OK" }]), {
-          status: 200,
-        });
-      }
-      return new Response(
-        JSON.stringify([{ result: 3 }, { result: 45_000 }]),
-        { status: 200 }
-      );
+  it("executes atomic Lua INCR+PEXPIRE in one Upstash pipeline call and allows client-limit fallback", async () => {
+    const capturedBodies: unknown[] = [];
+    let counter = 0;
+    const atomicLuaFetch = (async (_url: string, init?: RequestInit) => {
+      counter += 1;
+      const parsed = JSON.parse(String(init?.body ?? "[]")) as unknown[];
+      capturedBodies.push(parsed);
+      return new Response(JSON.stringify([{ result: [counter, 58_000] }]), {
+        status: 200,
+      });
     }) as unknown as typeof fetch;
 
     const first = await enforceDistributedRateLimit({
@@ -122,10 +114,27 @@ describe("rate-limit, proxy trust hardening & API credit safeguards", () => {
       windowMs: 60_000,
       upstashUrl: "https://example.upstash.io",
       upstashToken: "secret-token",
-      fetchImpl: okFetch,
+      fetchImpl: atomicLuaFetch,
     });
     expect(first.allowed).toBe(true);
+    expect(first.remaining).toBe(1);
     expect(first.backend).toBe("upstash_redis");
+
+    // Must send ONE single EVAL Lua command (never separate INCR + PEXPIRE roundtrips)
+    expect(capturedBodies).toHaveLength(1);
+    const firstCmd = (capturedBodies[0] as unknown[][])[0];
+    expect(firstCmd?.[0]).toBe("EVAL");
+    expect(firstCmd?.[1]).toBe(ATOMIC_FIXED_WINDOW_LUA);
+
+    await enforceDistributedRateLimit({
+      key: "203.0.113.10",
+      namespace: "test",
+      maxRequests: 2,
+      windowMs: 60_000,
+      upstashUrl: "https://example.upstash.io",
+      upstashToken: "secret-token",
+      fetchImpl: atomicLuaFetch,
+    });
 
     const blocked = await enforceDistributedRateLimit({
       key: "203.0.113.10",
@@ -134,11 +143,12 @@ describe("rate-limit, proxy trust hardening & API credit safeguards", () => {
       windowMs: 60_000,
       upstashUrl: "https://example.upstash.io",
       upstashToken: "secret-token",
-      fetchImpl: okFetch,
+      fetchImpl: atomicLuaFetch,
     });
     expect(blocked.allowed).toBe(false);
     expect(blocked.backend).toBe("upstash_redis");
 
+    // Per-client rate limit keeps memory fallback when Redis temporarily fails
     const fallback = await enforceDistributedRateLimit({
       key: "203.0.113.10",
       namespace: "test",
@@ -151,6 +161,75 @@ describe("rate-limit, proxy trust hardening & API credit safeguards", () => {
     });
     expect(fallback.allowed).toBe(true);
     expect(fallback.backend).toBe("memory_fallback");
+  });
+
+  it("fails closed on paid global AI credit limits when Redis errors, times out, or is required but missing", async () => {
+    const httpErrorQuota = await consumeGlobalCreditQuota({
+      maxHourlyRequests: 10,
+      upstashUrl: "https://example.upstash.io",
+      upstashToken: "secret-token",
+      fetchImpl: (async () =>
+        new Response("Service Unavailable", { status: 503 })) as unknown as typeof fetch,
+    });
+    expect(httpErrorQuota.allowed).toBe(false);
+    expect(httpErrorQuota.failClosed).toBe(true);
+    expect(httpErrorQuota.backend).toBe("store_unavailable");
+
+    const networkTimeoutQuota = await consumeGlobalCreditQuota({
+      maxHourlyRequests: 10,
+      upstashUrl: "https://example.upstash.io",
+      upstashToken: "secret-token",
+      fetchImpl: (async () => {
+        throw new Error("ETIMEDOUT");
+      }) as unknown as typeof fetch,
+    });
+    expect(networkTimeoutQuota.allowed).toBe(false);
+    expect(networkTimeoutQuota.failClosed).toBe(true);
+    expect(networkTimeoutQuota.backend).toBe("store_unavailable");
+
+    const missingRequiredStore = await consumeGlobalCreditQuota({
+      maxHourlyRequests: 10,
+      requireDistributedStore: true,
+      upstashUrl: undefined,
+      upstashToken: undefined,
+    });
+    expect(missingRequiredStore.allowed).toBe(false);
+    expect(missingRequiredStore.failClosed).toBe(true);
+    expect(missingRequiredStore.backend).toBe("store_unavailable");
+  });
+
+  it("enforces strict distributed credit & concurrency limits under concurrent bursts without over-issuance", async () => {
+    let atomicRedisCount = 0;
+    const concurrentRedisFetch = (async () => {
+      const next = ++atomicRedisCount;
+      await Promise.resolve();
+      return new Response(JSON.stringify([{ result: [next, 3_600_000] }]), {
+        status: 200,
+      });
+    }) as unknown as typeof fetch;
+
+    const quotaBurst = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        consumeGlobalCreditQuota({
+          maxHourlyRequests: 3,
+          upstashUrl: "https://example.upstash.io",
+          upstashToken: "secret-token",
+          fetchImpl: concurrentRedisFetch,
+        })
+      )
+    );
+
+    const allowedQuotaCount = quotaBurst.filter((r) => r.allowed).length;
+    const blockedQuotaCount = quotaBurst.filter((r) => !r.allowed).length;
+    expect(allowedQuotaCount).toBe(3);
+    expect(blockedQuotaCount).toBe(7);
+
+    // Concurrent semaphore slot acquisition
+    const slots = Array.from({ length: 8 }, () => tryAcquireAnalysisSlot(3));
+    expect(slots.filter((s) => s.acquired)).toHaveLength(3);
+    expect(slots.filter((s) => !s.acquired)).toHaveLength(5);
+    for (const s of slots) s.release();
+    expect(tryAcquireAnalysisSlot(1).acquired).toBe(true);
   });
 
   it("enforces global hourly credit quota, concurrency slots, and optional access tokens", async () => {

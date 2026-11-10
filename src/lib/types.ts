@@ -287,4 +287,5 @@ export interface ServerConfigStatus {
   publicAnalyzeEnabled?: boolean;
   accessTokenRequired?: boolean;
   distributedRateLimitConfigured?: boolean;
+  distributedQuotaRequired?: boolean;
 }

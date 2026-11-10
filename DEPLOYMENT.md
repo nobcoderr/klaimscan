@@ -9,7 +9,7 @@
 - **Framework Preset**: Next.js
 - **Node.js Version**: `20.x` atau `22.x`
 - **API Route Runtime**: `export const runtime = "nodejs"` dan `export const maxDuration = 60` pada [src/app/api/analyze/route.ts](src/app/api/analyze/route.ts), dikawal oleh batas eksekusi menyeluruh `ANALYZE_PIPELINE_DEADLINE_MS` (`48000` ms) agar pipeline selesai atau mengalami degradasi aman sebelum batas platform `60s`.
-- **Upload Limit Konsisten**: Batas unggahan adalah **5 MB** per screenshot (`MAX_IMAGE_BYTES = 5 * 1024 * 1024`) di antarmuka browser maupun validasi server.
+- **Upload Limit Konsisten**: Batas unggahan adalah **4 MB** per screenshot (`MAX_IMAGE_BYTES = 4 * 1024 * 1024`, batas multipart total `4.450.000` byte) di antarmuka browser maupun validasi server agar selalu aman di bawah batas request `4,5 MB` Vercel Serverless Functions. Panduan penggaris OCR dibuat di server menggunakan `sharp` (`serverExternalPackages: ["sharp"]`).
 - **Image Optimization**: `images: { unoptimized: true }` di [next.config.ts](next.config.ts) agar preview client blob URL bekerja konsisten tanpa pemrosesan eksternal tambahan.
 - **Keamanan Respons**: `next.config.ts` otomatis menambahkan `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, dan `Permissions-Policy`.
 
@@ -33,8 +33,9 @@ Masuk ke **Project Settings → Environment Variables** di Vercel, lalu tambahka
 | `ANALYZE_MAX_CONCURRENT` | Opsional | `4` eksekusi pipeline paralel per instance |
 | `ANALYZE_PIPELINE_DEADLINE_MS` | Opsional | `48000` ms batas menyeluruh di bawah `maxDuration = 60` |
 | `TRUSTED_PROXY_MODE` | Opsional | `none` (otomatis `vercel` bila `VERCEL=1` untuk membaca `x-vercel-forwarded-for` saja) |
-| `UPSTASH_REDIS_REST_URL` | Opsional (disarankan produksi) | URL REST Upstash Redis untuk rate limit terdistribusi multi-instance |
-| `UPSTASH_REDIS_REST_TOKEN` | Opsional (disarankan produksi) | Token REST Upstash Redis |
+| `UPSTASH_REDIS_REST_URL` | Wajib di produksi multi-instance | URL REST Upstash Redis untuk rate limit & kuota atomik Lua terdistribusi |
+| `UPSTASH_REDIS_REST_TOKEN` | Wajib di produksi multi-instance | Token REST Upstash Redis |
+| `ANALYZE_REQUIRE_DISTRIBUTED_QUOTA` | Opsional (otomatis `true` bila `VERCEL=1`) | Tolak eksekusi AI *fail-closed* (`503 CREDIT_GUARD_UNAVAILABLE`) jika store Redis tidak tersedia/kosong |
 
 > **Peringatan Keamanan**: Jangan menaruh API key berawalan `NEXT_PUBLIC_`. Seluruh pemanggilan API eksternal hanya terjadi di sisi server (`src/lib/env.ts` & `src/app/api/**`), dan header `x-forwarded-for` mentah tidak pernah dipercayai secara langsung oleh rate limiter.
 
@@ -42,7 +43,7 @@ Masuk ke **Project Settings → Environment Variables** di Vercel, lalu tambahka
 
 ## 3. Perlindungan Biaya & Abuse di Deployment Publik
 
-1. **Multi-Instance Rate Limiting**: Hubungkan `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN` agar penghitung laju per-klien maupun kuota global per jam sinkron di seluruh instance serverless Vercel. Bila variabel Upstash belum diisi, sistem otomatis fallback aman ke *in-memory limiter* per instance.
+1. **Multi-Instance Atomic Rate Limiting & Fail-Closed Credit Guard**: Hubungkan `UPSTASH_REDIS_REST_URL` dan `UPSTASH_REDIS_REST_TOKEN` agar penghitung laju maupun kuota global per jam berjalan atomik memakai skrip Lua `EVAL` (`INCR` + `PEXPIRE` + `PTTL`). Bila penyimpanan terdistribusi mengalami gangguan atau belum dikonfigurasi saat `ANALYZE_REQUIRE_DISTRIBUTED_QUOTA=true` (default di Vercel), penjaga kuota AI global otomatis bersifat **fail-closed** (`503 CREDIT_GUARD_UNAVAILABLE`).
 2. **Validasi Header Proxy Terkontrol**: Di Vercel, rate limiter hanya membaca `x-vercel-forwarded-for` yang divalidasi dengan `net.isIP`, sehingga rotasi header `x-forwarded-for` oleh bot tidak dapat melewati batas kuota.
 3. **Batas Biaya Global & Konkurensi**: `ANALYZE_GLOBAL_HOURLY_LIMIT` hanya dihitung untuk unggahan valid yang benar-benar memanggil OpenAI API, didampingi semaphore `ANALYZE_MAX_CONCURRENT` dan opsi matikan cepat (`ANALYZE_PUBLIC_ACCESS_ENABLED=false`).
 4. **Error Generik Aman**: Respons HTTP `4xx`/`5xx` dan stream NDJSON mengembalikan pesan generik beserta `errorId` (mis. `ERR-1A2B3C4D`), sementara diagnostik yang telah disanitasi dicatat hanya di log server terstruktur.

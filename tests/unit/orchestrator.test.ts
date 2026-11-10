@@ -32,6 +32,7 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
       trustedProxyMode: "none",
       upstashRedisRestUrl: undefined,
       upstashRedisRestToken: undefined,
+      requireDistributedQuota: false,
     });
 
     vi.spyOn(extractorModule, "extractClaimFromScreenshot").mockResolvedValue({
@@ -118,6 +119,7 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
       trustedProxyMode: "none",
       upstashRedisRestUrl: undefined,
       upstashRedisRestToken: undefined,
+      requireDistributedQuota: false,
     });
 
     vi.spyOn(extractorModule, "extractClaimFromScreenshot").mockImplementation(

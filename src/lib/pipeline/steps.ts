@@ -7,7 +7,7 @@ export function createInitialPipelineSteps(): PipelineStepState[] {
       code: "01",
       label: "Image Processing",
       description:
-        "Validasi signature PNG/JPG/WebP (maks. 5 MB) & hapus metadata EXIF/XMP",
+        "Validasi signature PNG/JPG/WebP (maks. 4 MB) & hapus metadata EXIF/XMP",
       status: "pending",
     },
     {

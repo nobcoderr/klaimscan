@@ -15,7 +15,8 @@ export interface RateLimitResult {
   remaining: number;
   resetAt: number;
   retryAfterSeconds: number;
-  backend?: "memory" | "upstash_redis" | "memory_fallback";
+  backend?: "memory" | "upstash_redis" | "memory_fallback" | "store_unavailable";
+  failClosed?: boolean;
 }
 
 const DEFAULT_MAX_REQUESTS = 12;
@@ -23,6 +24,20 @@ const DEFAULT_WINDOW_MS = 60_000;
 const MAX_TRACKED_KEYS = 2_000;
 const REDIS_TIMEOUT_MS = 1_500;
 const UNTRUSTED_CLIENT_BUCKET = "untrusted-client";
+
+export const ATOMIC_FIXED_WINDOW_LUA = [
+  'local current = redis.call("INCR", KEYS[1])',
+  "if current == 1 then",
+  '  redis.call("PEXPIRE", KEYS[1], ARGV[1])',
+  "else",
+  '  local ttl = redis.call("PTTL", KEYS[1])',
+  "  if ttl < 0 then",
+  '    redis.call("PEXPIRE", KEYS[1], ARGV[1])',
+  "  end",
+  "end",
+  'local remainingTtl = redis.call("PTTL", KEYS[1])',
+  "return {current, remainingTtl}",
+].join("\n");
 
 const requestLogByKey = new Map<string, number[]>();
 let activeAnalysisCount = 0;
@@ -162,6 +177,8 @@ export async function enforceDistributedRateLimit(params: {
   upstashToken?: string;
   fetchImpl?: typeof fetch;
   now?: number;
+  failClosedOnStoreError?: boolean;
+  requireDistributedStore?: boolean;
 }): Promise<RateLimitResult> {
   const {
     key,
@@ -172,12 +189,33 @@ export async function enforceDistributedRateLimit(params: {
     upstashToken,
     fetchImpl = fetch,
     now = Date.now(),
+    failClosedOnStoreError = false,
+    requireDistributedStore = false,
   } = params;
 
   const safeLimit = Math.max(1, maxRequests);
   const safeWindowMs = Math.max(1_000, windowMs);
 
   if (!upstashUrl || !upstashToken) {
+    if (requireDistributedStore) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "distributed_quota_store_missing_fail_closed",
+          namespace,
+        })
+      );
+      return {
+        allowed: false,
+        limit: safeLimit,
+        remaining: 0,
+        resetAt: now + safeWindowMs,
+        retryAfterSeconds: 60,
+        backend: "store_unavailable",
+        failClosed: true,
+      };
+    }
+
     return checkRateLimit(`${namespace}:${key}`, {
       maxRequests: safeLimit,
       windowMs: safeWindowMs,
@@ -188,11 +226,13 @@ export async function enforceDistributedRateLimit(params: {
   const windowBucket = Math.floor(now / safeWindowMs);
   const redisKey = `klaimscan:${namespace}:${windowBucket}:${hashRateLimitKey(key)}`;
   const endpoint = `${upstashUrl.replace(/\/+$/, "")}/pipeline`;
+  const expireTtlMs = safeWindowMs + 2_000;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), REDIS_TIMEOUT_MS);
 
   try {
+    // Atomic INCR + PEXPIRE + PTTL inside one Redis Lua EVAL command
     const response = await fetchImpl(endpoint, {
       method: "POST",
       signal: controller.signal,
@@ -201,8 +241,7 @@ export async function enforceDistributedRateLimit(params: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify([
-        ["INCR", redisKey],
-        ["PTTL", redisKey],
+        ["EVAL", ATOMIC_FIXED_WINDOW_LUA, 1, redisKey, String(expireTtlMs)],
       ]),
     });
 
@@ -211,23 +250,21 @@ export async function enforceDistributedRateLimit(params: {
     }
 
     const data = (await response.json()) as UpstashPipelineCommandResult[];
-    const count = Number(data?.[0]?.result);
-    const pttl = Number(data?.[1]?.result);
-
-    if (!Number.isFinite(count) || count <= 0) {
-      throw new Error("Invalid Upstash pipeline counter response");
+    const firstCmd = data?.[0];
+    if (firstCmd?.error) {
+      throw new Error(`Upstash Redis error: ${firstCmd.error}`);
     }
 
-    if (!Number.isFinite(pttl) || pttl < 0) {
-      const expireTtlMs = safeWindowMs + 2_000;
-      void fetchImpl(endpoint, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${upstashToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify([["PEXPIRE", redisKey, expireTtlMs]]),
-      }).catch(() => undefined);
+    const tuple = firstCmd?.result;
+    if (!Array.isArray(tuple) || tuple.length < 2) {
+      throw new Error("Invalid Upstash atomic EVAL response");
+    }
+
+    const count = Number(tuple[0]);
+    const pttl = Number(tuple[1]);
+
+    if (!Number.isFinite(count) || count <= 0) {
+      throw new Error("Invalid Upstash atomic counter value");
     }
 
     const effectiveTtlMs =
@@ -256,6 +293,25 @@ export async function enforceDistributedRateLimit(params: {
       backend: "upstash_redis",
     };
   } catch {
+    if (failClosedOnStoreError) {
+      console.error(
+        JSON.stringify({
+          level: "error",
+          event: "distributed_quota_fail_closed",
+          namespace,
+        })
+      );
+      return {
+        allowed: false,
+        limit: safeLimit,
+        remaining: 0,
+        resetAt: now + 60_000,
+        retryAfterSeconds: 60,
+        backend: "store_unavailable",
+        failClosed: true,
+      };
+    }
+
     console.warn(
       JSON.stringify({
         level: "warn",
@@ -283,6 +339,8 @@ export async function consumeGlobalCreditQuota(params: {
   upstashToken?: string;
   fetchImpl?: typeof fetch;
   now?: number;
+  requireDistributedStore?: boolean;
+  failClosedOnStoreError?: boolean;
 }): Promise<RateLimitResult> {
   return enforceDistributedRateLimit({
     key: "__global_hourly__",
@@ -293,6 +351,9 @@ export async function consumeGlobalCreditQuota(params: {
     upstashToken: params.upstashToken,
     fetchImpl: params.fetchImpl,
     now: params.now,
+    requireDistributedStore: params.requireDistributedStore ?? false,
+    // Fail closed whenever distributed store is configured/unavailable so paid API credits cannot bypass budget
+    failClosedOnStoreError: params.failClosedOnStoreError ?? true,
   });
 }
 

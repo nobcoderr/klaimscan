@@ -7,6 +7,10 @@ import {
   parseCalendarDateMs,
   queryGoogleFactCheckApi,
 } from "@/lib/pipeline/evidence-retriever";
+import {
+  getJakartaIsoDate,
+  resolveIndonesianRelativeIsoDate,
+} from "@/lib/utils";
 
 describe("evidence-retriever & P0 strict source trust", () => {
   it("classifies genuine official government, curated fact-checker, and media domains accurately", () => {
@@ -192,5 +196,40 @@ describe("evidence-retriever & P0 strict source trust", () => {
     expect(excerpt).toContain("Polri resmi menetapkan eks Kapolri Listyo Sigit");
     expect(excerpt).not.toContain("Kalau Anda mau");
     expect(extractDateFromText(excerpt)).toBe("2026-11-03");
+  });
+
+  it("resolves Indonesian relative date expressions in Asia/Jakarta (WIB) across UTC midnight boundaries", () => {
+    // 18:30Z on Nov 10 UTC === 01:30 WIB on Nov 11 Asia/Jakarta
+    const utcEveningWibNextDay = new Date("2026-11-10T18:30:00.000Z");
+    expect(getJakartaIsoDate(utcEveningWibNextDay)).toBe("2026-11-11");
+    expect(resolveIndonesianRelativeIsoDate("hari ini", utcEveningWibNextDay)).toBe(
+      "2026-11-11"
+    );
+    expect(resolveIndonesianRelativeIsoDate("kemarin", utcEveningWibNextDay)).toBe(
+      "2026-11-10"
+    );
+    expect(resolveIndonesianRelativeIsoDate("besok", utcEveningWibNextDay)).toBe(
+      "2026-11-12"
+    );
+    expect(
+      resolveIndonesianRelativeIsoDate("3 hari lalu", utcEveningWibNextDay)
+    ).toBe("2026-11-08");
+
+    expect(parseCalendarDateMs("hari ini", undefined, utcEveningWibNextDay)).toBe(
+      Date.parse("2026-11-11T00:00:00.000Z")
+    );
+    expect(parseCalendarDateMs("kemarin", undefined, utcEveningWibNextDay)).toBe(
+      Date.parse("2026-11-10T00:00:00.000Z")
+    );
+
+    // 16:30Z on Nov 10 UTC === 23:30 WIB on Nov 10 Asia/Jakarta (same day before midnight WIB)
+    const utcSameDayWib = new Date("2026-11-10T16:30:00.000Z");
+    expect(getJakartaIsoDate(utcSameDayWib)).toBe("2026-11-10");
+    expect(resolveIndonesianRelativeIsoDate("hari ini", utcSameDayWib)).toBe(
+      "2026-11-10"
+    );
+    expect(resolveIndonesianRelativeIsoDate("kemarin", utcSameDayWib)).toBe(
+      "2026-11-09"
+    );
   });
 });

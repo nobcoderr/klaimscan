@@ -6,17 +6,16 @@ import type {
   ProcessedImageSummary,
   VerdictAssessment,
 } from "@/lib/types";
+import { getJakartaIsoDate } from "@/lib/utils";
 import { STANDARD_REPORT_LIMITATIONS } from "../../../tests/fixtures/cases";
 import { buildPublicOriginTrace } from "./public-trace";
 
 export { buildPublicOriginTrace };
 
 export function generateCaseId(now = new Date()): string {
-  const yyyy = now.getUTCFullYear();
-  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(now.getUTCDate()).padStart(2, "0");
+  const ymd = getJakartaIsoDate(now).replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `KS-${yyyy}${mm}${dd}-${rand}`;
+  return `KS-${ymd}-${rand}`;
 }
 
 export function buildInvestigationReport(params: {

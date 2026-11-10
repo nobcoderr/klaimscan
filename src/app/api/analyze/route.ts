@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerEnvConfig } from "@/lib/env";
 import {
   ImageValidationError,
+  MAX_IMAGE_BYTES,
   sanitizeScreenshotBuffer,
 } from "@/lib/image/sanitize";
 import { runAnalysisPipeline } from "@/lib/pipeline/orchestrator";
@@ -20,8 +21,8 @@ import {
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Allow multipart boundary + optional OCR ruler guide + analyst notes on top of 5 MB max image
-const MAX_MULTIPART_CONTENT_LENGTH = 9 * 1024 * 1024;
+// Enforce strict upload body ceiling safely below Vercel's 4.5 MB Serverless Function limit
+const MAX_MULTIPART_CONTENT_LENGTH = 4_450_000;
 
 function buildRateLimitHeaders(rate: {
   limit: number;
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
       return NextResponse.json(
         {
           error:
-            "Ukuran payload permintaan melebihi batas maksimal 5 MB per screenshot.",
+            "Ukuran payload permintaan melebihi batas maksimal 4 MB per screenshot (batas request platform 4,5 MB). Kompres atau potong screenshot terlebih dahulu.",
           code: "INVALID_IMAGE",
         },
         { status: 400 }
@@ -140,16 +141,21 @@ export async function POST(request: Request) {
     );
   }
 
+  if (fileEntry.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json(
+      {
+        error:
+          "Ukuran file melebihi batas maksimal 4 MB (batas request platform 4,5 MB). Kompres atau potong screenshot terlebih dahulu.",
+        code: "INVALID_IMAGE",
+      },
+      { status: 400 }
+    );
+  }
+
+  // Trust boundary: never read or accept arbitrary client-provided ocrGuide bytes
+  const ignoredClientGuideSubmitted = formData.has("ocrGuide");
   const rawArrayBuffer = await fileEntry.arrayBuffer();
   const rawBuffer = Buffer.from(rawArrayBuffer);
-  const ocrGuideEntry = formData.get("ocrGuide");
-  const ocrGuideFile =
-    ocrGuideEntry instanceof File && ocrGuideEntry.size > 0
-      ? ocrGuideEntry
-      : undefined;
-  const ocrGuideBuffer = ocrGuideFile
-    ? Buffer.from(await ocrGuideFile.arrayBuffer())
-    : undefined;
   const analystNotesRaw = formData.get("analystNotes");
   const analystNotes =
     typeof analystNotesRaw === "string" && analystNotesRaw.trim()
@@ -159,13 +165,6 @@ export async function POST(request: Request) {
   // Validate image & strip metadata synchronously first so invalid files fail fast with 400 before consuming AI credit quotas
   try {
     sanitizeScreenshotBuffer(rawBuffer, fileEntry.name, fileEntry.type);
-    if (ocrGuideBuffer && ocrGuideFile) {
-      sanitizeScreenshotBuffer(
-        ocrGuideBuffer,
-        ocrGuideFile.name,
-        ocrGuideFile.type
-      );
-    }
   } catch (error) {
     if (error instanceof ImageValidationError) {
       return NextResponse.json(
@@ -194,9 +193,30 @@ export async function POST(request: Request) {
     maxHourlyRequests: env.globalHourlyLimit,
     upstashUrl: env.upstashRedisRestUrl,
     upstashToken: env.upstashRedisRestToken,
+    requireDistributedStore: env.requireDistributedQuota,
   });
 
   if (!globalCredit.allowed) {
+    if (globalCredit.failClosed) {
+      return NextResponse.json(
+        {
+          error:
+            "Layanan penjaga kuota AI terdistribusi tidak tersedia sementara; eksekusi analisis langsung dihentikan (fail-closed) untuk melindungi batas biaya API. Silakan coba lagi atau gunakan Demo Dataset.",
+          code: "CREDIT_GUARD_UNAVAILABLE",
+          retryAfterSeconds: globalCredit.retryAfterSeconds,
+        },
+        {
+          status: 503,
+          headers: {
+            "Retry-After": String(globalCredit.retryAfterSeconds),
+            "X-RateLimit-Limit": String(globalCredit.limit),
+            "X-RateLimit-Remaining": "0",
+            "X-RateLimit-Backend": globalCredit.backend ?? "store_unavailable",
+          },
+        }
+      );
+    }
+
     return NextResponse.json(
       {
         error:
@@ -245,9 +265,7 @@ export async function POST(request: Request) {
         rawBuffer,
         fileName: fileEntry.name,
         declaredMimeType: fileEntry.type,
-        ocrGuideBuffer,
-        ocrGuideFileName: ocrGuideFile?.name,
-        ocrGuideMimeType: ocrGuideFile?.type,
+        ignoredClientGuideSubmitted,
         analystNotes,
         deadlineMs: env.pipelineDeadlineMs,
         signal: request.signal,
@@ -298,9 +316,7 @@ export async function POST(request: Request) {
           rawBuffer,
           fileName: fileEntry.name,
           declaredMimeType: fileEntry.type,
-          ocrGuideBuffer,
-          ocrGuideFileName: ocrGuideFile?.name,
-          ocrGuideMimeType: ocrGuideFile?.type,
+          ignoredClientGuideSubmitted,
           analystNotes,
           deadlineMs: env.pipelineDeadlineMs,
           signal: request.signal,

@@ -22,6 +22,7 @@ export interface PublicApiErrorDescriptor {
   status: number;
   code:
     | "OPENAI_NOT_CONFIGURED"
+    | "OCR_INTEGRITY_ERROR"
     | "PIPELINE_TIMEOUT"
     | "PIPELINE_UPSTREAM_ERROR"
     | "PIPELINE_ERROR";
@@ -34,6 +35,15 @@ export function toPublicApiError(
   errorId = createErrorReferenceId()
 ): PublicApiErrorDescriptor {
   const errName = error instanceof Error ? error.name : "UnknownError";
+
+  if (errName === "OcrGuideIntegrityError") {
+    return {
+      status: 400,
+      code: "OCR_INTEGRITY_ERROR",
+      message: `Verifikasi integritas gambar OCR gagal: panduan koordinat harus berasal dari screenshot tervalidasi (Ref: ${errorId}).`,
+      errorId,
+    };
+  }
 
   if (errName === "PipelineConfigurationError") {
     return {

@@ -10,9 +10,9 @@ Aplikasi berjalan sebagai **monolit full-stack Next.js App Router** sehingga API
 
 ```mermaid
 flowchart LR
-    U["Browser SOC UI (+ Interactive OCR Highlight)"] -->|"Multipart PNG/JPG/WEBP <= 5MB"| API["POST /api/analyze (Node.js)"]
-    API --> RL["Access Gate, Trusted IP & Distributed Rate/Credit Guard"]
-    RL --> S1["01 Image Sanitizer (Magic Bytes + Strip EXIF + SHA-256)"]
+    U["Browser SOC UI (+ Interactive OCR Highlight)"] -->|"Multipart PNG/JPG/WEBP <= 4MB (< 4.5MB Vercel Cap)"| API["POST /api/analyze (Node.js)"]
+    API --> RL["Access Gate, Trusted IP & Atomic Lua Distributed Rate/Credit Guard"]
+    RL --> S1["01 Image Sanitizer + Server OCR Ruler (Magic Bytes + Strip EXIF + SHA-256)"]
     S1 --> S2A["02A Vision OCR Only (Headline, Overlay, Caption, Coords)"]
     S2A --> S2B["02B Text-Only Claim Normalizer (Zero Image Input)"]
     S2B --> S3A["03a OpenAI web_search"]
@@ -31,11 +31,11 @@ flowchart LR
 
 Seluruh eksekusi dikawal oleh *root deadline controller* (`ANALYZE_PIPELINE_DEADLINE_MS`, default `48.000 ms` di bawah `maxDuration = 60` Vercel) yang mewariskan sisa anggaran waktu dan `AbortSignal` ke tiap tahap.
 
-### 01 — Image Processing (`src/lib/image/sanitize.ts`)
-- Menolak file melebihi `5 * 1024 * 1024` bytes (`5 MB` / `MAX_IMAGE_BYTES`) di browser maupun server.
+### 01 — Image Processing & Server-Side OCR Guide (`src/lib/image/sanitize.ts`, `ocr-guide.ts`)
+- Menolak file melebihi `4 * 1024 * 1024` bytes (`4 MB` / `MAX_IMAGE_BYTES`) serta payload multipart `> 4.450.000` bytes agar kompatibel penuh dengan batas request body **4,5 MB Vercel**.
 - Memeriksa **magic bytes** asli untuk PNG (`89 50 4E 47`), JPEG (`FF D8 FF`), dan WebP (`RIFF....WEBP`) sebelum diproses.
 - Menghapus segmen metadata berisiko privasi di memori (`eXIf`, `tEXt`, `APP1`, `VP8X` EXIF/XMP).
-- Menghitung **SHA-256** dari gambar bersih tanpa penyimpanan permanen (`persistedOnServer: false`).
+- Menghitung **SHA-256** dari gambar bersih tanpa penyimpanan permanen (`persistedOnServer: false`), lalu merender panduan penggaris koordinat OCR secara eksklusif di server menggunakan `sharp` dengan verifikasi kecocokan SHA-256 (input `ocrGuide` dari klien diabaikan).
 
 ### 02 — Text-First Two-Stage OCR & Claim Extraction (`src/lib/pipeline/claim-extractor.ts`)
 - **Stage A (`extractOcrFromScreenshot` — Vision OCR ONLY)**: satu-satunya tahap yang menerima `base64DataUrl`. Membaca teks terlihat termasuk **teks/headline besar yang menempel DI ATAS foto sampul**, `extractedHeadline`, `graphicOverlayTexts`, `extractedCaption` (`captionTruncated`), publisher/handle publik, tanggal unggahan, catatan klarifikasi, serta koordinat kotak teks `ocrRegions` (0–1000) untuk *OCR Text Highlight* interaktif. Dilarang menilai wajah tokoh, seragam, latar, atau keaslian foto sampul.
@@ -82,5 +82,5 @@ Seluruh eksekusi dikawal oleh *root deadline controller* (`ANALYZE_PIPELINE_DEAD
 | Inflasi bukti oleh penerbit tunggal | Deduplikasi per root publisher sebelum pembobotan verdict | `src/lib/pipeline/verdict-engine.ts` |
 | IP Header Spoofing & Abuse API berbayar | Trusted proxy mode (`none`/`vercel`/`cloudflare`/`forwarded-rightmost`), dukungan Upstash Redis REST terdistribusi, batas kuota AI global per jam, semaphore konkurensi, saklar akses/token opsional | `src/lib/security/rate-limit.ts`, `src/app/api/analyze/route.ts` |
 | SSRF / URL internal berbahaya | Pemblokiran `localhost`, IPv4/IPv6 privat/link-local, userinfo `@`, non-HTTP(S), serta penghapusan `utm_*`/`fbclid` | `src/lib/security/url-guard.ts` |
-| Upload berbahaya / payload besar | Pembatasan **5 MB** konsisten di UI & server, verifikasi magic-bytes, dan zero disk persistence | `src/lib/image/sanitize.ts`, `src/app/api/analyze/route.ts` |
+| Upload berbahaya / payload besar | Pembatasan **4 MB** (< `4,5 MB` batas request Vercel) konsisten di UI & server, generator penggaris OCR *server-side* terkunci SHA-256, verifikasi magic-bytes, dan zero disk persistence | `src/lib/image/sanitize.ts`, `ocr-guide.ts`, `src/app/api/analyze/route.ts` |
 | Pipeline menggantung melewati batas `60s` | Batas eksekusi menyeluruh `48s` (`ANALYZE_PIPELINE_DEADLINE_MS`) + degradasi aman ke fallback | `src/lib/pipeline/orchestrator.ts` |

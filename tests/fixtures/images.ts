@@ -1,4 +1,37 @@
+import sharp from "sharp";
 import { MAX_IMAGE_BYTES } from "@/lib/image/sanitize";
+
+export async function makeRealRasterPngBuffer(
+  width: number,
+  height: number,
+  options?: { noisy?: boolean }
+): Promise<Buffer> {
+  const channels = 3;
+  const raw = Buffer.alloc(width * height * channels);
+
+  if (options?.noisy) {
+    let seed = 0x12345678;
+    for (let i = 0; i < raw.length; i += 1) {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      raw[i] = (seed >>> 16) & 0xff;
+    }
+  } else {
+    for (let y = 0; y < height; y += 1) {
+      for (let x = 0; x < width; x += 1) {
+        const idx = (y * width + x) * channels;
+        raw[idx] = (x * 7) % 256;
+        raw[idx + 1] = (y * 11) % 256;
+        raw[idx + 2] = 48;
+      }
+    }
+  }
+
+  return sharp(raw, {
+    raw: { width, height, channels },
+  })
+    .png({ compressionLevel: options?.noisy ? 1 : 6 })
+    .toBuffer();
+}
 
 export function makeMinimalPngBuffer(): Buffer {
   const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);

@@ -28,7 +28,7 @@ Setiap kategori (`supporting`, `contradicting`, `partial_context`) dideduplikasi
 
 | Area Uji | Berkas Uji | Cakupan Verifikasi |
 | --- | --- | --- |
-| Validasi & Sanitasi Gambar | [tests/unit/sanitize.test.ts](tests/unit/sanitize.test.ts) | Penolakan file palsu (non-image), batas konsisten **5 MB**, penghapusan PNG/JPEG/WebP metadata EXIF & tEXt |
+| Validasi & Sanitasi Gambar | [tests/unit/sanitize.test.ts](tests/unit/sanitize.test.ts) | Penolakan file palsu (non-image), batas konsisten **4 MB**, portrait/landscape besar aman `<4,5 MB`, penggaris OCR *server-side* terkunci SHA-256, penghapusan PNG/JPEG/WebP EXIF & tEXt |
 | Skema OCR & Normalisasi Klaim Text-First | [tests/unit/claim-extractor.test.ts](tests/unit/claim-extractor.test.ts) | Stage A OCR (headline, overlay gambar, caption, bbox), Stage B text-only (nol `input_image`), handle UI kosong, 5 nilai `postStance`, blokir SSRF `visiblePostUrl` |
 | Anti-SSRF & URL Guard | [tests/unit/url-guard.test.ts](tests/unit/url-guard.test.ts) | Pemblokiran `localhost`, IPv4/IPv6 privat/link-local, userinfo `@`, `javascript:`/`file:`, strip parameter `utm_*` |
 | Klasifikasi Sumber Ketat (P0) | [tests/unit/evidence-retriever.test.ts](tests/unit/evidence-retriever.test.ts) | Penolakan spoof `kominfo.go.id.attacker.com`, `fake-go.id`, path `/hoaks` pada domain sembarang, UGC `forum.detik.com`, prioritas excerpt nyata vs query placeholder |
@@ -38,7 +38,7 @@ Setiap kategori (`supporting`, `contradicting`, `partial_context`) dideduplikasi
 | Orkestrasi & Deadline Menyeluruh (P1) | [tests/unit/orchestrator.test.ts](tests/unit/orchestrator.test.ts) | `PipelineTimeoutError` ketika Vision melampaui budget, serta degradasi aman Step 4 ke fallback saat sisa waktu `< 3s` |
 | Rate Limit, Proxy Trust & Kredit API (P0) | [tests/unit/rate-limit.test.ts](tests/unit/rate-limit.test.ts) | Penolakan header `x-forwarded-for` pada mode `none`, mode `vercel`/`cloudflare`/`forwarded-rightmost`, integrasi Upstash Redis REST + fallback, kuota AI global per jam, semaphore konkurensi, token opsional |
 | API Route Security & Error Generik (P0/P1) | [tests/unit/api-routes.test.ts](tests/unit/api-routes.test.ts) | Error `500`/`504` generik dengan `errorId` tanpa membocorkan exception mentah, tahan spoofing `x-forwarded-for`, kuota global `429`, redaksi rahasia pada log server |
-| Case Report & End-to-End UI | [tests/unit/report-generator.test.ts](tests/unit/report-generator.test.ts), [tests/e2e/dashboard.spec.ts](tests/e2e/dashboard.spec.ts) | Dashboard SOC, `@vereditum`, switcher Demo `D-1`..`D-6`, preview unggahan **maks. 5 MB**, navigasi penuh, Case Report PDF, `/api/health` |
+| Case Report & End-to-End UI | [tests/unit/report-generator.test.ts](tests/unit/report-generator.test.ts), [tests/e2e/dashboard.spec.ts](tests/e2e/dashboard.spec.ts) | Dashboard SOC, `@vereditum`, switcher Demo `D-1`..`D-6`, penolakan unggahan **> 4 MB**, pengiriman tunggal tanpa duplikat `ocrGuide`, navigasi penuh, Case Report PDF, `/api/health` |
 
 ---
 

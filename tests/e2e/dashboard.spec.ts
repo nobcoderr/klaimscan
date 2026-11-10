@@ -106,12 +106,12 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     ).toBeVisible();
   });
 
-  test("rejects oversized (>5MB) screenshot upload before hitting backend", async ({
+  test("rejects oversized (>4MB) screenshot upload before hitting backend", async ({
     page,
   }) => {
     await page.goto("/");
 
-    const oversizedBuffer = Buffer.alloc(5 * 1024 * 1024 + 64, 0);
+    const oversizedBuffer = Buffer.alloc(4 * 1024 * 1024 + 64, 0);
     oversizedBuffer[0] = 0x89;
     oversizedBuffer[1] = 0x50;
     oversizedBuffer[2] = 0x4e;
@@ -124,7 +124,7 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     });
 
     await expect(
-      page.getByText(/Ukuran file melebihi batas maksimal 5 MB/i).first()
+      page.getByText(/Ukuran file melebihi batas maksimal 4 MB/i).first()
     ).toBeVisible();
   });
 
@@ -141,7 +141,7 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     expect(JSON.stringify(json)).not.toContain("sk-");
   });
 
-  test("aligns OCR highlight boxes strictly onto rendered portrait screenshot bitmap without horizontal stretching", async ({
+  test("aligns OCR highlight boxes strictly onto rendered portrait screenshot bitmap and sends single file without duplicate client ocrGuide", async ({
     page,
   }) => {
     let sawOcrGuide = false;
@@ -356,6 +356,6 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
       expect(Math.abs(overlayBox.width - expectedWidth)).toBeLessThan(4);
     }
 
-    expect(sawOcrGuide).toBe(true);
+    expect(sawOcrGuide).toBe(false);
   });
 });

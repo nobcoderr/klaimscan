@@ -1,12 +1,16 @@
+import { createHash } from "node:crypto";
 import type OpenAI from "openai";
 import { describe, expect, it, vi } from "vitest";
+import { OcrGuideIntegrityError } from "@/lib/image/ocr-guide";
 import {
   assembleVisibleTranscript,
   buildFallbackAtomicClaims,
   buildFallbackNormalizedClaims,
   ClaimExtractionZodSchema,
   convertStageABoundsToOcrRegions,
+  extractClaimFromScreenshot,
   extractClaimsFromOcrText,
+  filterClaimsForDebunkingStance,
   hasReadableFactualText,
   normalizeOcrRegions,
   normalizeVisiblePostUrl,
@@ -18,6 +22,7 @@ import {
   TextClaimNormalizationZodSchema,
 } from "@/lib/pipeline/claim-extractor";
 import type { ScreenshotOcrResult } from "@/lib/types";
+import { makeRealRasterPngBuffer } from "../fixtures/images";
 
 describe("two-stage text-first claim-extractor schema & prompt injection guards", () => {
   it("validates Stage A OCR schema and clamps normalized bounding boxes to 0..1000", () => {
@@ -329,5 +334,111 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
       text: "SOCIOMIND NEWS",
       bbox: { x: 122, y: 509, width: 264, height: 22 },
     });
+  });
+
+  it("rejects mismatched serverGuide/expectedImageSha256 in extractClaimFromScreenshot without calling OpenAI", async () => {
+    const rasterA = await makeRealRasterPngBuffer(480, 720);
+    const rasterB = await makeRealRasterPngBuffer(640, 480);
+    const shaA = createHash("sha256").update(rasterA).digest("hex");
+    const shaB = createHash("sha256").update(rasterB).digest("hex");
+    const parseSpy = vi.fn();
+    const fakeClient = {
+      responses: { parse: parseSpy },
+    } as unknown as OpenAI;
+
+    await expect(
+      extractClaimFromScreenshot({
+        client: fakeClient,
+        model: "gpt-5.4-mini",
+        base64DataUrl: `data:image/png;base64,${rasterA.toString("base64")}`,
+        sanitizedImageBuffer: rasterA,
+        imageMimeType: "image/png",
+        expectedImageSha256: shaA,
+        serverGuide: {
+          buffer: rasterB,
+          base64DataUrl: `data:image/png;base64,${rasterB.toString("base64")}`,
+          hasCoordinateRulers: true,
+          sourceSha256: shaB,
+          width: 640,
+          height: 480,
+        },
+      })
+    ).rejects.toThrow(OcrGuideIntegrityError);
+
+    expect(parseSpy).not.toHaveBeenCalled();
+  });
+
+  it("strips debunking caption corrections and meta-labels from normalized/atomic claims on debunking_claim posts", () => {
+    const filtered = filterClaimsForDebunkingStance({
+      postStance: "debunking_claim",
+      primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
+      extractedCaption:
+        "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+      clarificationOrDebunkText: "HOAKS / KLARIFIKASI",
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "SIM",
+          predicateAction: "berlaku seumur hidup gratis tanpa perpanjangan",
+          objectTarget: "Pemegang SIM",
+          proposition: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
+          eventDate: null,
+          legalOrAdministrativeStatus: null,
+          sourceRole: "headline",
+          semanticNote: null,
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "NC-02",
+          subject: "Korlantas Polri",
+          predicateAction: "menegaskan",
+          objectTarget: "masa berlaku SIM tetap 5 tahun",
+          proposition:
+            "Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+          eventDate: null,
+          legalOrAdministrativeStatus: "Klarifikasi resmi",
+          sourceRole: "caption",
+          semanticNote: "Bantahan resmi terhadap headline.",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      atomicClaims: [
+        {
+          id: "ac1",
+          category: "main_event",
+          label: "Klaim Headline Utama",
+          proposition: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "ac2",
+          category: "formal_legal_status",
+          label: "Konteks Klarifikasi Resmi",
+          proposition:
+            "Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "ac3",
+          category: "caption_context",
+          label: "Label Debunking",
+          proposition: "Unggahan ini diberi label HOAKS / KLARIFIKASI.",
+          requiredForFullConfirmation: false,
+        },
+        {
+          id: "ac4",
+          category: "formal_legal_status",
+          label: "Status Hukum/Administratif yang Dikoreksi Caption",
+          proposition:
+            "Masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+          requiredForFullConfirmation: true,
+        },
+      ],
+    });
+
+    expect(filtered.normalizedClaims).toHaveLength(1);
+    expect(filtered.normalizedClaims[0].id).toBe("NC-01");
+    expect(filtered.atomicClaims).toHaveLength(1);
+    expect(filtered.atomicClaims[0].id).toBe("ac1");
   });
 });

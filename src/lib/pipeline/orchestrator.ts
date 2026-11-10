@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 import { getServerEnvConfig } from "@/lib/env";
+import {
+  createServerOcrRulerGuide,
+  OcrGuideIntegrityError,
+} from "@/lib/image/ocr-guide";
 import { sanitizeScreenshotBuffer } from "@/lib/image/sanitize";
 import type {
   ClaimExtractionResult,
@@ -7,6 +11,7 @@ import type {
   PipelineStepId,
   PipelineStepState,
 } from "@/lib/types";
+import { getJakartaIsoDate } from "@/lib/utils";
 import {
   buildFallbackAtomicClaims,
   buildFallbackNormalizedClaims,
@@ -65,9 +70,7 @@ export async function runAnalysisPipeline(params: {
   rawBuffer: Buffer;
   fileName: string;
   declaredMimeType?: string;
-  ocrGuideBuffer?: Buffer;
-  ocrGuideFileName?: string;
-  ocrGuideMimeType?: string;
+  ignoredClientGuideSubmitted?: boolean;
   analystNotes?: string;
   deadlineMs?: number;
   signal?: AbortSignal;
@@ -136,8 +139,14 @@ export async function runAnalysisPipeline(params: {
   const client = new OpenAI({ apiKey: env.openAiApiKey });
   const warnings: string[] = [];
 
+  if (params.ignoredClientGuideSubmitted) {
+    warnings.push(
+      "Field ocrGuide eksternal dari klien diabaikan demi integritas bukti; panduan penggaris OCR dibuat langsung di server dari screenshot asli tervalidasi."
+    );
+  }
+
   try {
-    // 01 — Image Processing
+    // 01 — Image Processing & Server-Side OCR Guide Generation
     let t0 = Date.now();
     markStep("image_processing", { status: "active" });
     const sanitized = sanitizeScreenshotBuffer(
@@ -145,13 +154,11 @@ export async function runAnalysisPipeline(params: {
       params.fileName,
       params.declaredMimeType
     );
-    const sanitizedGuide = params.ocrGuideBuffer
-      ? sanitizeScreenshotBuffer(
-          params.ocrGuideBuffer,
-          params.ocrGuideFileName || "ocr-guide.png",
-          params.ocrGuideMimeType
-        )
-      : null;
+    const serverGuide = await createServerOcrRulerGuide({
+      sanitizedImageBuffer: sanitized.buffer,
+      mimeType: sanitized.mimeType,
+      expectedSha256: sanitized.summary.sha256,
+    });
     markStep("image_processing", {
       status: "completed",
       durationMs: Date.now() - t0,
@@ -174,7 +181,10 @@ export async function runAnalysisPipeline(params: {
         model: env.visionModel,
         textModel: env.searchModel,
         base64DataUrl: sanitized.base64DataUrl,
-        ocrGuideDataUrl: sanitizedGuide?.base64DataUrl,
+        sanitizedImageBuffer: sanitized.buffer,
+        imageMimeType: sanitized.mimeType,
+        expectedImageSha256: sanitized.summary.sha256,
+        serverGuide,
         analystNotes: params.analystNotes,
         timeoutMs: extractionBudgetMs,
         signal: pipelineController.signal,
@@ -195,6 +205,9 @@ export async function runAnalysisPipeline(params: {
         }),
       };
     } catch (error) {
+      if (error instanceof OcrGuideIntegrityError) {
+        throw error;
+      }
       if (isAbortOrTimeoutError(error, pipelineController.signal)) {
         throw new PipelineTimeoutError("Tahap ekstraksi klaim melampaui batas waktu.");
       }
@@ -271,7 +284,7 @@ export async function runAnalysisPipeline(params: {
       t0 = Date.now();
       markStep("evidence_comparison", { status: "active" });
       const remainingForComparison = remainingMs();
-      const todayIso = new Date().toISOString().slice(0, 10);
+      const todayIso = getJakartaIsoDate();
 
       if (
         retrieval.candidates.length > 0 &&
