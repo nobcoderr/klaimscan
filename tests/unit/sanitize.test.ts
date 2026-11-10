@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   detectImageMimeFromMagicBytes,
   ImageValidationError,
+  MAX_IMAGE_BYTES,
   sanitizeScreenshotBuffer,
 } from "@/lib/image/sanitize";
 
@@ -20,7 +21,10 @@ function makeMinimalPngWithTextChunk(): Buffer {
     "tEXt",
     Buffer.from("Author\0SecretCameraDevice123", "utf8")
   );
-  const exifChunk = makeChunk("eXIf", Buffer.from("MM\0*EXIF_GPS_DATA", "utf8"));
+  const exifChunk = makeChunk(
+    "eXIf",
+    Buffer.from("MM\0*EXIF_GPS_DATA", "utf8")
+  );
   const idat = makeChunk("IDAT", Buffer.alloc(140, 0xaa));
   const iend = makeChunk("IEND", Buffer.alloc(0));
 
@@ -29,7 +33,6 @@ function makeMinimalPngWithTextChunk(): Buffer {
 
 function makeMinimalJpegWithExif(): Buffer {
   const soi = Buffer.from([0xff, 0xd8]);
-  // APP1 EXIF segment: FF E1 + length(18) + "Exif\0\0SECRET_GPS"
   const app1Payload = Buffer.from("Exif\0\0SECRET_GPS_01", "ascii");
   const app1Header = Buffer.alloc(4);
   app1Header[0] = 0xff;
@@ -37,7 +40,6 @@ function makeMinimalJpegWithExif(): Buffer {
   app1Header.writeUInt16BE(2 + app1Payload.length, 2);
   const app1 = Buffer.concat([app1Header, app1Payload]);
 
-  // SOS + scan payload + EOI
   const sosHeader = Buffer.from([0xff, 0xda, 0x00, 0x08, 1, 1, 0, 0, 63, 0]);
   const scanBody = Buffer.alloc(140, 0x11);
   const eoi = Buffer.from([0xff, 0xd9]);
@@ -54,7 +56,6 @@ function makeMinimalWebpWithExif(): Buffer {
     return Buffer.concat([hdr, payload, pad]);
   };
 
-  // VP8X with EXIF bit (0x08) set
   const vp8xPayload = Buffer.alloc(10, 0);
   vp8xPayload[0] = 0x08;
   const vp8x = makeChunk("VP8X", vp8xPayload);
@@ -78,6 +79,22 @@ describe("sanitizeScreenshotBuffer", () => {
     );
   });
 
+  it("rejects images larger than 5MB", () => {
+    const oversized = Buffer.alloc(MAX_IMAGE_BYTES + 10, 0);
+    oversized[0] = 0x89;
+    oversized[1] = 0x50;
+    oversized[2] = 0x4e;
+    oversized[3] = 0x47;
+    oversized[4] = 0x0d;
+    oversized[5] = 0x0a;
+    oversized[6] = 0x1a;
+    oversized[7] = 0x0a;
+
+    expect(() =>
+      sanitizeScreenshotBuffer(oversized, "oversized.png", "image/png")
+    ).toThrow(/5 MB/);
+  });
+
   it("strips PNG tEXt and eXIf chunks while preserving IHDR/IDAT/IEND", () => {
     const raw = makeMinimalPngWithTextChunk();
     expect(detectImageMimeFromMagicBytes(raw)).toBe("image/png");
@@ -88,7 +105,9 @@ describe("sanitizeScreenshotBuffer", () => {
     expect(res.summary.strippedSegments).toContain("PNG tEXt");
     expect(res.summary.strippedSegments).toContain("PNG eXIf");
     expect(res.summary.metadataRemovedBytes).toBeGreaterThan(0);
-    expect(res.buffer.includes(Buffer.from("SecretCameraDevice123"))).toBe(false);
+    expect(res.buffer.includes(Buffer.from("SecretCameraDevice123"))).toBe(
+      false
+    );
     expect(res.buffer.includes(Buffer.from("IDAT"))).toBe(true);
   });
 
@@ -108,7 +127,6 @@ describe("sanitizeScreenshotBuffer", () => {
     expect(res.mimeType).toBe("image/webp");
     expect(res.summary.strippedSegments).toContain("WebP EXIF");
     expect(res.buffer.includes(Buffer.from("PRIVATE_EXIF_DATA"))).toBe(false);
-    // VP8X flags byte at offset 12 (RIFF hdr) + 8 (chunk hdr) = 20
     expect(res.buffer[20] & 0x08).toBe(0);
   });
 });

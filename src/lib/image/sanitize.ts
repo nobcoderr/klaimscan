@@ -9,7 +9,7 @@ export const ALLOWED_IMAGE_MIMES = [
 
 export type AllowedImageMime = (typeof ALLOWED_IMAGE_MIMES)[number];
 
-export const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+export const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB
 export const MIN_IMAGE_BYTES = 128;
 
 export interface SanitizedImageResult {
@@ -249,7 +249,7 @@ export function sanitizeScreenshotBuffer(
 
   if (rawBuffer.length > MAX_IMAGE_BYTES) {
     throw new ImageValidationError(
-      "Ukuran file melebihi batas 10 MB. Kompres atau potong screenshot terlebih dahulu."
+      "Ukuran file melebihi batas maksimal 5 MB. Kompres atau potong screenshot terlebih dahulu."
     );
   }
 
