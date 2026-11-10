@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { ServerConfigStatus } from "./types";
 
-const DEFAULT_MODEL = "gpt-4.1-mini";
+const DEFAULT_MODEL = "gpt-5.4-mini";
 
 const PLACEHOLDER_PATTERNS = [
   /^isi_/i,

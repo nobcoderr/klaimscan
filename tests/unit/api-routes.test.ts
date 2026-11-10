@@ -90,8 +90,8 @@ describe("API routes & security failure handling", () => {
     vi.spyOn(envModule, "getServerEnvConfig").mockReturnValue({
       openAiApiKey: undefined,
       factCheckApiKey: undefined,
-      visionModel: "gpt-4.1-mini",
-      searchModel: "gpt-4.1-mini",
+      visionModel: "gpt-5.4-mini",
+      searchModel: "gpt-5.4-mini",
       usingFallbackVisionModel: true,
       usingFallbackSearchModel: true,
     });
@@ -116,8 +116,8 @@ describe("API routes & security failure handling", () => {
     vi.spyOn(envModule, "getServerEnvConfig").mockReturnValue({
       openAiApiKey: "sk-proj-test-key-1234567890",
       factCheckApiKey: undefined,
-      visionModel: "gpt-4.1-mini",
-      searchModel: "gpt-4.1-mini",
+      visionModel: "gpt-5.4-mini",
+      searchModel: "gpt-5.4-mini",
       usingFallbackVisionModel: false,
       usingFallbackSearchModel: false,
     });
@@ -151,8 +151,8 @@ describe("API routes & security failure handling", () => {
     vi.spyOn(envModule, "getServerEnvConfig").mockReturnValue({
       openAiApiKey: "sk-proj-test-key-1234567890",
       factCheckApiKey: undefined,
-      visionModel: "gpt-4.1-mini",
-      searchModel: "gpt-4.1-mini",
+      visionModel: "gpt-5.4-mini",
+      searchModel: "gpt-5.4-mini",
       usingFallbackVisionModel: false,
       usingFallbackSearchModel: false,
     });

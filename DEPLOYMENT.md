@@ -21,8 +21,8 @@ Masuk ke **Project Settings → Environment Variables** di Vercel, lalu tambahka
 | Name | Required | Example Value (Jangan Pakai Secret di Repo) |
 | --- | --- | --- |
 | `OPENAI_API_KEY` | Ya (untuk analisis live) | Masukkan kunci OpenAI API Anda melalui UI Vercel |
-| `OPENAI_VISION_MODEL` | Opsional | `gpt-4.1-mini` |
-| `OPENAI_SEARCH_MODEL` | Opsional | `gpt-4.1-mini` |
+| `OPENAI_VISION_MODEL` | Opsional | `gpt-5.4-mini` |
+| `OPENAI_SEARCH_MODEL` | Opsional | `gpt-5.4-mini` |
 | `FACTCHECK_API_KEY` | Opsional | Kunci Google Cloud Fact Check Tools API Anda |
 
 > **Peringatan Keamanan**: Jangan menaruh API key berawalan `NEXT_PUBLIC_`. Seluruh pemanggilan API eksternal hanya terjadi di sisi server (`src/lib/env.ts` & `src/app/api/**`).

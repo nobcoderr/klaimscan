@@ -66,8 +66,8 @@ Variabel pada `.env.local`:
 | Variabel | Wajib? | Keterangan | Default |
 | --- | --- | --- | --- |
 | `OPENAI_API_KEY` | Ya (untuk analisis live) | OpenAI API Key untuk model vision & `web_search` | Kosong (mengaktifkan DEMO MODE) |
-| `OPENAI_VISION_MODEL` | Opsional | Model Responses API dengan kemampuan vision | `gpt-4.1-mini` |
-| `OPENAI_SEARCH_MODEL` | Opsional | Model Responses API yang mendukung tool `web_search` | `gpt-4.1-mini` |
+| `OPENAI_VISION_MODEL` | Opsional | Membaca dan menganalisis screenshot via OpenAI Responses API vision | `gpt-5.4-mini` |
+| `OPENAI_SEARCH_MODEL` | Opsional | Mencari bukti dan klarifikasi melalui internet via OpenAI `web_search` | `gpt-5.4-mini` |
 | `FACTCHECK_API_KEY` | Opsional | Google Fact Check Tools API key | Kosong (fallback ke `web_search`) |
 
 > Catatan: Apabila `OPENAI_API_KEY` belum diisi atau tidak aktif, antarmuka tetap berjalan penuh dalam **DEMO MODE** menggunakan 6 dataset fixture yang dilabeli jelas di [tests/fixtures/cases.ts](tests/fixtures/cases.ts), sementara endpoint live `/api/analyze` mengembalikan `503 OPENAI_NOT_CONFIGURED` tanpa memalsukan data.
