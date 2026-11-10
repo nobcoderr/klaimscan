@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { sanitizePublicEvidenceUrl } from "@/lib/security/url-guard";
 import type { ClaimExtractionResult } from "@/lib/types";
 
 export const VISION_REQUEST_TIMEOUT_MS = 25_000;
@@ -102,19 +103,11 @@ export function normalizeVisiblePostUrl(rawUrl: string | null): string | null {
   if (!trimmed) return null;
   const candidate = /^https?:\/\//i.test(trimmed)
     ? trimmed
-    : /^[a-z0-9.-]+\.[a-z]{2,}\//i.test(trimmed)
+    : /^[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(trimmed)
       ? `https://${trimmed}`
       : null;
   if (!candidate) return null;
-  try {
-    const parsed = new URL(candidate);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      return null;
-    }
-    return parsed.toString();
-  } catch {
-    return null;
-  }
+  return sanitizePublicEvidenceUrl(candidate);
 }
 
 export async function extractClaimFromScreenshot(params: {

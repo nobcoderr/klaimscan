@@ -69,11 +69,15 @@ describe("claim-extractor schema & prompt injection guards", () => {
     expect(clean).not.toContain("\u0000");
   });
 
-  it("normalizes safe HTTP/HTTPS visible post URLs and rejects javascript/file URIs", () => {
+  it("normalizes safe HTTP/HTTPS visible post URLs and rejects unsafe or internal URIs", () => {
     expect(normalizeVisiblePostUrl("instagram.com/vereditum")).toBe(
       "https://instagram.com/vereditum"
     );
     expect(normalizeVisiblePostUrl("javascript:alert(1)")).toBeNull();
     expect(normalizeVisiblePostUrl("file:///etc/passwd")).toBeNull();
+    expect(normalizeVisiblePostUrl("http://127.0.0.1/internal")).toBeNull();
+    expect(
+      normalizeVisiblePostUrl("http://169.254.169.254/latest/meta-data")
+    ).toBeNull();
   });
 });

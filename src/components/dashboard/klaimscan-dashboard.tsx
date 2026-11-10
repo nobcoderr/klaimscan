@@ -422,7 +422,12 @@ export function KlaimscanDashboard({
                     <div className="mt-2 font-heading text-3xl font-bold text-[#F3F8FF]">
                       {String(kpiFlaggedClaims).padStart(3, "0")}
                     </div>
-                    <p className="mt-1 text-xs text-[#8BA4C0]">Demo dataset</p>
+                    <p className="mt-1 text-xs text-[#8BA4C0]">
+                      Demo dataset
+                      {sessionReports.length > 0
+                        ? ` + ${sessionReports.filter((r) => r.verdict.claimVerdict === "FALSE" || r.verdict.claimVerdict === "MISLEADING").length} live sesi ini`
+                        : ""}
+                    </p>
                   </CardContent>
                 </Card>
 
@@ -437,7 +442,12 @@ export function KlaimscanDashboard({
                     <div className="mt-2 font-heading text-3xl font-bold text-[#F3F8FF]">
                       {String(kpiSourcesFound).padStart(3, "0")}
                     </div>
-                    <p className="mt-1 text-xs text-[#8BA4C0]">Demo dataset</p>
+                    <p className="mt-1 text-xs text-[#8BA4C0]">
+                      Demo dataset
+                      {sessionReports.length > 0
+                        ? ` + ${sessionReports.reduce((sum, r) => sum + r.evidenceSources.length, 0)} live sesi ini`
+                        : ""}
+                    </p>
                   </CardContent>
                 </Card>
               </div>

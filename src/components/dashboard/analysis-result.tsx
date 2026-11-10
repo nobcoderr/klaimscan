@@ -625,6 +625,11 @@ export function AnalysisResult({
                     · Waktu:{" "}
                     {report.publicOriginTrace.visibleTimestamp || "N/A"}
                   </p>
+                  {report.publicOriginTrace.visiblePostUrl && (
+                    <p className="mt-1 break-all font-mono text-[11px] text-[#45DDEB] print-muted">
+                      URL terlihat: {report.publicOriginTrace.visiblePostUrl}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -635,13 +640,31 @@ export function AnalysisResult({
                 <p className="mt-2 text-sm leading-relaxed">
                   {report.verdict.explanation}
                 </p>
+                {report.analystNotes && (
+                  <p className="mt-2 border-t border-[#254159]/50 pt-2 text-xs text-[#8BA4C0] print-muted">
+                    <strong>Catatan Analis:</strong> {report.analystNotes}
+                  </p>
+                )}
               </div>
 
               <div>
-                <h4 className="mb-2 font-heading text-sm font-semibold">
-                  Bukti Pendukung &amp; Pembantah Terverifikasi (
-                  {report.evidenceSources.length})
-                </h4>
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                  <h4 className="font-heading text-sm font-semibold">
+                    Bukti Pendukung &amp; Pembantah Terverifikasi (
+                    {report.evidenceSources.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
+                    <Badge variant="verified">
+                      Supporting: {report.supportingEvidence.length}
+                    </Badge>
+                    <Badge variant="threat">
+                      Contradicting: {report.contradictingEvidence.length}
+                    </Badge>
+                    <Badge variant="warning">
+                      Partial Context: {report.partialContextEvidence.length}
+                    </Badge>
+                  </div>
+                </div>
                 {report.evidenceSources.length === 0 ? (
                   <p className="text-sm text-[#8BA4C0] print-muted">
                     Tidak ditemukan sumber bukti terverifikasi yang memadai;
@@ -654,7 +677,7 @@ export function AnalysisResult({
                         <TableHead>ID</TableHead>
                         <TableHead>Kategori</TableHead>
                         <TableHead>Penerbit &amp; Tgl</TableHead>
-                        <TableHead>Judul &amp; URL Sumber</TableHead>
+                        <TableHead>Klaim Dievaluasi, Judul &amp; URL Sumber</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -674,11 +697,14 @@ export function AnalysisResult({
                           </TableCell>
                           <TableCell className="text-xs">
                             <div className="font-medium">{src.title}</div>
+                            <div className="mt-0.5 text-[11px] text-[#8BA4C0] print-muted">
+                              Klaim: {src.claimEvaluated}
+                            </div>
                             <a
                               href={src.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="break-all font-mono text-[11px] text-[#45DDEB] underline"
+                              className="mt-0.5 block break-all font-mono text-[11px] text-[#45DDEB] underline"
                             >
                               {src.url}
                             </a>
@@ -692,13 +718,26 @@ export function AnalysisResult({
 
               <div className="rounded-lg border border-[#254159] p-4 print-surface">
                 <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
-                  Batasan Metodologi &amp; Privasi (Clear Limitations)
+                  Batasan Metodologi, Jejak Publik &amp; Privasi (Clear Limitations)
+                </p>
+                <p className="mt-2 text-xs text-[#FBBF24] print-muted">
+                  {report.publicOriginTrace.attributionCaveat}
+                </p>
+                <p className="mt-1 text-xs text-[#8BA4C0] print-muted">
+                  {report.publicOriginTrace.privacyGuarantee}
                 </p>
                 <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#8BA4C0] print-muted">
                   {report.limitations.map((item, idx) => (
                     <li key={idx}>{item}</li>
                   ))}
                 </ul>
+                {report.warnings.length > 0 && (
+                  <ul className="mt-2 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0] print-muted">
+                    {report.warnings.map((warn, idx) => (
+                      <li key={idx}>Catatan Sistem: {warn}</li>
+                    ))}
+                  </ul>
+                )}
               </div>
 
               <div className="rounded-lg border border-[#254159] p-3 font-mono text-[11px] text-[#8BA4C0] print-surface print-muted">

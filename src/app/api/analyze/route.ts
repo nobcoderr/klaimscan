@@ -5,11 +5,59 @@ import {
   sanitizeScreenshotBuffer,
 } from "@/lib/image/sanitize";
 import { runAnalysisPipeline } from "@/lib/pipeline/orchestrator";
+import {
+  checkRateLimit,
+  getClientIpFromRequest,
+} from "@/lib/security/rate-limit";
+import { sanitizeApiErrorMessage } from "@/lib/security/error-sanitizer";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// Allow multipart boundary + optional analyst notes on top of 5 MB max image
+const MAX_MULTIPART_CONTENT_LENGTH = 7 * 1024 * 1024;
+
 export async function POST(request: Request) {
+  const clientIp = getClientIpFromRequest(request);
+  const rate = checkRateLimit(clientIp, {
+    maxRequests: 15,
+    windowMs: 60_000,
+  });
+
+  if (!rate.allowed) {
+    return NextResponse.json(
+      {
+        error:
+          "Terlalu banyak permintaan analisis dari alamat yang sama. Tunggu beberapa saat lalu coba lagi.",
+        code: "RATE_LIMITED",
+        retryAfterSeconds: rate.retryAfterSeconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rate.retryAfterSeconds),
+          "X-RateLimit-Limit": String(rate.limit),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": String(Math.ceil(rate.resetAt / 1000)),
+        },
+      }
+    );
+  }
+
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const contentLength = Number.parseInt(contentLengthHeader, 10);
+    if (Number.isFinite(contentLength) && contentLength > MAX_MULTIPART_CONTENT_LENGTH) {
+      return NextResponse.json(
+        {
+          error: "Ukuran payload permintaan melebihi batas maksimal 5 MB per screenshot.",
+          code: "INVALID_IMAGE",
+        },
+        { status: 400 }
+      );
+    }
+  }
+
   let formData: FormData;
   try {
     formData = await request.formData();
@@ -82,14 +130,19 @@ export async function POST(request: Request) {
         declaredMimeType: fileEntry.type,
         analystNotes,
       });
-      return NextResponse.json({ report });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : "Terjadi kesalahan saat menjalankan pipeline analisis.";
       return NextResponse.json(
-        { error: message, code: "PIPELINE_ERROR" },
+        { report },
+        {
+          headers: {
+            "Cache-Control": "no-store",
+            "X-RateLimit-Limit": String(rate.limit),
+            "X-RateLimit-Remaining": String(rate.remaining),
+          },
+        }
+      );
+    } catch (error) {
+      return NextResponse.json(
+        { error: sanitizeApiErrorMessage(error), code: "PIPELINE_ERROR" },
         { status: 500 }
       );
     }
@@ -116,10 +169,7 @@ export async function POST(request: Request) {
       } catch (error) {
         send({
           type: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Terjadi kesalahan saat menjalankan pipeline analisis.",
+          message: sanitizeApiErrorMessage(error),
         });
       } finally {
         controller.close();
@@ -131,6 +181,8 @@ export async function POST(request: Request) {
     headers: {
       "Content-Type": "application/x-ndjson; charset=utf-8",
       "Cache-Control": "no-store",
+      "X-RateLimit-Limit": String(rate.limit),
+      "X-RateLimit-Remaining": String(rate.remaining),
     },
   });
 }

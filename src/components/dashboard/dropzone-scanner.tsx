@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { createInitialPipelineSteps } from "@/lib/pipeline/steps";
 import type {
@@ -32,6 +33,8 @@ const ACCEPTED_MIME_TYPES = new Set([
   "image/png",
   "image/webp",
 ]);
+
+const ACCEPTED_EXTENSIONS = /\.(png|jpe?g|webp)$/i;
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024; // 5 MB
 
@@ -138,7 +141,10 @@ export function DropzoneScanner({
     if (!file) return;
     setErrorMessage(null);
 
-    if (!ACCEPTED_MIME_TYPES.has(file.type)) {
+    const hasAcceptedMime = ACCEPTED_MIME_TYPES.has(file.type);
+    const hasAcceptedExt = !file.type && ACCEPTED_EXTENSIONS.test(file.name);
+
+    if (!hasAcceptedMime && !hasAcceptedExt) {
       const msg =
         "Format file tidak didukung. Unggah screenshot berformat PNG, JPG, atau WEBP.";
       setErrorMessage(msg);
@@ -533,6 +539,16 @@ export function DropzoneScanner({
                   </li>
                 ))}
               </ol>
+
+              {isAnalyzing && (
+                <div className="mt-4 space-y-2 rounded-lg border border-[#45DDEB]/30 bg-[#0D2133]/70 p-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-[#45DDEB]">
+                    Menyusun Berkas Investigasi...
+                  </p>
+                  <Skeleton className="h-3 w-4/5" />
+                  <Skeleton className="h-3 w-3/5" />
+                </div>
+              )}
             </div>
           </div>
         )}
