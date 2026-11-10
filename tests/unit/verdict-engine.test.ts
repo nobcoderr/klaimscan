@@ -21,12 +21,30 @@ function makeSource(overrides: Partial<EvidenceSource>): EvidenceSource {
 }
 
 describe("computeVerdictFromEvidence", () => {
-  it("returns UNVERIFIED when no relevant evidence exists", () => {
+  it("defaults to UNVERIFIED when no relevant evidence exists", () => {
     const verdict = computeVerdictFromEvidence({
       primaryClaim: "Klaim tanpa sumber",
       postStance: "asserting_claim",
       postStanceSummary: "Postingan mendukung klaim.",
       sources: [],
+    });
+
+    expect(verdict.claimVerdict).toBe("UNVERIFIED");
+  });
+
+  it("defaults to UNVERIFIED when only a single uncorroborated public_source exists", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim: "Rumor lokal tanpa konfirmasi instansi",
+      postStance: "asserting_claim",
+      postStanceSummary: "Akun mengklaim rumor.",
+      sources: [
+        makeSource({
+          domain: "blog-warga.example.org",
+          publisher: "Blog Warga",
+          relation: "supporting",
+          sourceTier: "public_source",
+        }),
+      ],
     });
 
     expect(verdict.claimVerdict).toBe("UNVERIFIED");
@@ -109,5 +127,17 @@ describe("computeVerdictFromEvidence", () => {
     });
 
     expect(verdict.claimVerdict).toBe("MISLEADING");
+  });
+
+  it("never outputs fabricated numerical confidence percentage fields", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim: "SIM seumur hidup",
+      postStance: "debunking_claim",
+      postStanceSummary: "Klarifikasi",
+      sources: [makeSource({ relation: "contradicting" })],
+    });
+
+    expect("confidence" in verdict).toBe(false);
+    expect("confidenceScore" in verdict).toBe(false);
   });
 });

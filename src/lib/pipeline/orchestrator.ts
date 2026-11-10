@@ -97,6 +97,9 @@ export async function runAnalysisPipeline(params: {
     candidates: retrieval.candidates,
     searchSummary: retrieval.searchSummary,
   });
+  if (comparison.warning) {
+    warnings.push(comparison.warning);
+  }
   markStep("evidence_comparison", {
     status: "completed",
     durationMs: Date.now() - t0,
