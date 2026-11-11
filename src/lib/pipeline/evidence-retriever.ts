@@ -6,10 +6,12 @@ import type {
   EvidenceExcerptBasis,
   EvidenceIndependence,
   EvidenceNature,
+  EvidenceSource,
   SourceTier,
 } from "@/lib/types";
 import {
   extractDomain,
+  extractRegistrableRoot,
   getJakartaIsoDate,
   resolveIndonesianRelativeIsoDate,
 } from "@/lib/utils";
@@ -298,9 +300,12 @@ export async function queryGoogleFactCheckApi(params: {
 
   const collected: CandidateEvidence[] = [];
   let hadFailure = false;
+  const deadlineAt = Date.now() + Math.max(500, timeoutMs);
 
   for (const query of queries.slice(0, 2)) {
     if (parentSignal?.aborted) break;
+    const remainingBudget = deadlineAt - Date.now();
+    if (remainingBudget < 500) break;
 
     const endpoint = new URL(
       "https://factchecktools.googleapis.com/v1alpha1/claims:search"
@@ -309,7 +314,10 @@ export async function queryGoogleFactCheckApi(params: {
     endpoint.searchParams.set("pageSize", "6");
     endpoint.searchParams.set("key", apiKey);
 
-    const { signal, cleanup } = createTimedSignal(timeoutMs, parentSignal);
+    const { signal, cleanup } = createTimedSignal(
+      remainingBudget,
+      parentSignal
+    );
     try {
       const res = await fetchImpl(endpoint.toString(), {
         method: "GET",
@@ -434,6 +442,71 @@ export function buildEvidenceSearchQueries(
   return [...new Set(queries.map((query) => query.replace(/\s+/g, " ").trim()))]
     .filter((query) => query.length > 2)
     .slice(0, 6);
+}
+
+export function needsSupplementalEvidenceSearch(
+  sources: EvidenceSource[]
+): boolean {
+  const aligned = sources.filter(
+    (source) =>
+      source.targetAspect !== "image_authenticity" &&
+      (source.relation === "supporting" ||
+        source.relation === "contradicting" ||
+        source.relation === "partial_context")
+  );
+  const substantiveAligned = aligned.filter(
+    (source) =>
+      source.excerptBasis !== "url_only" &&
+      source.excerptBasis !== "fact_check_api_metadata"
+  );
+  const hasPrimarySourceCandidate = substantiveAligned.some(
+    (source) =>
+      source.evidenceNature === "primary_record" ||
+      source.evidenceNature === "direct_statement" ||
+      source.evidenceNature === "original_research" ||
+      source.evidenceNature === "institutional_data"
+  );
+
+  return substantiveAligned.length === 0 || !hasPrimarySourceCandidate;
+}
+
+export function buildSupplementalEvidenceSearchQueries(
+  extraction: ClaimExtractionResult
+): string[] {
+  const normalizedClaims = extraction.normalizedClaims ?? [];
+  const eventTerms = sanitizeUntrustedText(
+    normalizedClaims
+      .map((claim) =>
+        [
+          claim.subject,
+          claim.predicateAction,
+          claim.objectTarget,
+          claim.eventDate,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      )
+      .find(Boolean) || extraction.primaryClaim,
+    180
+  );
+  const namedEntities = sanitizeUntrustedText(
+    [
+      ...new Set(
+        normalizedClaims.flatMap((claim) => claim.namedEntities ?? [])
+      ),
+    ].join(" "),
+    120
+  );
+  const primaryFocus = [namedEntities, eventTerms]
+    .filter(Boolean)
+    .join(" ")
+    .slice(0, 220);
+
+  return [
+    `${primaryFocus} official statement primary record original document dataset disclosure`,
+    `${eventTerms} disputed denied contradicted correction fact check`,
+    `${eventTerms} event date timeline earlier later context`,
+  ].map((query) => query.replace(/\s+/g, " ").trim());
 }
 
 function extractInferredPublicationDateFromUrl(url: string): string | null {
@@ -669,12 +742,12 @@ export async function queryOpenAiWebSearch(params: {
   queries?: string[];
   timeoutMs?: number;
   signal?: AbortSignal;
-}): Promise<{ candidates: CandidateEvidence[]; searchSummary: string }> {
+}): Promise<{ candidates: CandidateEvidence[] }> {
   const {
     client,
     model,
     extraction,
-    queries = buildEvidenceSearchQueries(extraction),
+    queries = buildEvidenceSearchQueries(extraction).slice(0, 1),
     timeoutMs = WEB_SEARCH_TIMEOUT_MS,
     signal: parentSignal,
   } = params;
@@ -703,7 +776,7 @@ export async function queryOpenAiWebSearch(params: {
       : null,
     normalizedSummary ? `Proposisi ternormalisasi:\n${normalizedSummary}` : null,
     atomicSummary ? `Pecahan klaim atomik:\n${atomicSummary}` : null,
-    `Rencana kueri independen (lakukan penelusuran terpisah untuk cakupan berbeda): ${cleanQueries}`,
+    `Kueri target untuk pencarian web independen ini: ${cleanQueries}`,
     extraction.visibleTimestamp
       ? `Tanggal/indikator publikasi pada screenshot: ${sanitizeUntrustedText(extraction.visibleTimestamp, 80)}`
       : "Tanggal publikasi asli postingan TIDAK terlihat pada screenshot.",
@@ -712,7 +785,7 @@ export async function queryOpenAiWebSearch(params: {
       ? `Indikator waktu pada klaim: ${sanitizeUntrustedText(extraction.claimDateMentioned, 80)}`
       : null,
     "Instruksi penelusuran berimbang & verifikasi berbasis teks (TEXT-FIRST):",
-    "1. Jalankan kueri exact claim, entity+event, sumber primer relevan, pelaporan independen, bukti yang menyangkal, dan konteks waktu sebagai pencarian terpisah bila memungkinkan.",
+    "1. Jalankan pencarian web ini untuk kueri target di atas; jangan menggantinya dengan ringkasan pengetahuan model. Strategi pencarian lain dijalankan melalui permintaan terpisah.",
     "2. Pilih sumber primer sesuai jenis klaim; jangan mengasumsikan pemerintah sebagai otoritas tunggal untuk semua bidang.",
     "3. Fokus menguji KEBENARAN TEKS BERITA/PERISTIWA (jangan menggugurkan berita hanya karena klarifikasi foto ilustrasi/sampul editan).",
     "4. Prioritaskan memeriksa berita TERBARU sekitar indikator waktu klaim terlebih dahulu; jangan hanya mengandalkan artikel cek-fakta lama tanpa memeriksa perkembangan terbaru.",
@@ -827,17 +900,15 @@ export async function queryOpenAiWebSearch(params: {
       }
     }
 
-    return {
-      candidates,
-      searchSummary: sanitizeUntrustedText(response.output_text || "", 4000),
-    };
+    return { candidates };
   } finally {
     cleanup();
   }
 }
 
 export function deduplicateEvidence(
-  list: CandidateEvidence[]
+  list: CandidateEvidence[],
+  limit = 12
 ): CandidateEvidence[] {
   const byUrl = new Map<string, CandidateEvidence>();
 
@@ -898,9 +969,10 @@ export function deduplicateEvidence(
     }
   }
 
-  // Prefer entries carrying more source context; source authority is assessed later.
+  // Rank excerpt quality within publisher/source-tier lanes; source authority is assessed later.
   const sorted = Array.from(byUrl.values()).sort((a, b) => {
     const scoreOf = (c: CandidateEvidence) => {
+      if (c.excerptBasis === "direct_source_content") return 4;
       if (c.excerptBasis === "ai_search_summary") return 3;
       if (c.excerptBasis === "fact_check_api_metadata") return 2;
       if (!isQueryPlaceholderSnippet(c.snippet)) return 1;
@@ -909,17 +981,49 @@ export function deduplicateEvidence(
     return scoreOf(b) - scoreOf(a);
   });
 
-  const nonPlaceholderCount = sorted.filter(
-    (c) => !isQueryPlaceholderSnippet(c.snippet)
-  ).length;
+  const tierOrder: SourceTier[] = [
+    "official_government",
+    "fact_checker",
+    "credible_media",
+    "public_source",
+  ];
+  const lanes = new Map(
+    tierOrder.map((tier) => [
+      tier,
+      sorted.filter((candidate) => candidate.sourceTier === tier),
+    ])
+  );
+  const selected: CandidateEvidence[] = [];
+  const selectedPublishers = new Set<string>();
 
-  // Keep raw uncited search URLs only as minor fallback when cited excerpts are scarce
-  const curated =
-    nonPlaceholderCount >= 3
-      ? sorted.filter((c) => !isQueryPlaceholderSnippet(c.snippet))
-      : sorted;
+  while (selected.length < Math.max(0, limit)) {
+    let added = false;
+    for (const tier of tierOrder) {
+      const lane = lanes.get(tier);
+      if (!lane?.length) continue;
 
-  return curated.slice(0, 12);
+      const distinctPublisherIndex = lane.findIndex((candidate) => {
+        const key = extractRegistrableRoot(candidate.url || candidate.domain);
+        return !key || !selectedPublishers.has(key);
+      });
+      const [candidate] = lane.splice(
+        distinctPublisherIndex >= 0 ? distinctPublisherIndex : 0,
+        1
+      );
+      if (!candidate) continue;
+
+      const publisherKey = extractRegistrableRoot(
+        candidate.url || candidate.domain
+      );
+      if (publisherKey) selectedPublishers.add(publisherKey);
+      selected.push(candidate);
+      added = true;
+      if (selected.length >= limit) break;
+    }
+    if (!added) break;
+  }
+
+  return selected;
 }
 
 export async function retrieveEvidence(params: {
@@ -931,7 +1035,6 @@ export async function retrieveEvidence(params: {
   signal?: AbortSignal;
 }): Promise<{
   candidates: CandidateEvidence[];
-  searchSummary: string;
   warnings: string[];
 }> {
   const {
@@ -952,96 +1055,151 @@ export async function retrieveEvidence(params: {
   const searchTimeout = timeoutMs
     ? Math.min(timeoutMs, WEB_SEARCH_TIMEOUT_MS)
     : WEB_SEARCH_TIMEOUT_MS;
-  const firstSearchTimeout = Math.max(
-    500,
-    Math.floor(searchTimeout * 0.7)
-  );
+  const firstSearchTimeout = Math.max(500, Math.floor(searchTimeout * 0.75));
+  const initialQueries = queryPlan.slice(0, 3);
 
-  const [factCheckRes, webSearchRes] = await Promise.allSettled([
+  const [factCheckRes, webSearchResults] = await Promise.all([
     queryGoogleFactCheckApi({
       queries: queryPlan.slice(0, 2),
       apiKey: factCheckApiKey,
       timeoutMs: factCheckTimeout,
       signal,
     }),
-    queryOpenAiWebSearch({
-      client,
-      model: searchModel,
-      extraction,
-      queries: queryPlan,
-      timeoutMs: firstSearchTimeout,
-      signal,
-    }),
+    Promise.allSettled(
+      initialQueries.map((query) =>
+        queryOpenAiWebSearch({
+          client,
+          model: searchModel,
+          extraction,
+          queries: [query],
+          timeoutMs: firstSearchTimeout,
+          signal,
+        })
+      )
+    ),
   ]);
 
   const combined: CandidateEvidence[] = [];
-  let searchSummary = "";
-  let webSearchFailedOrEmpty = webSearchRes.status === "rejected";
+  if (factCheckRes.warning) warnings.push(factCheckRes.warning);
+  combined.push(...factCheckRes.candidates);
 
-  if (factCheckRes.status === "fulfilled") {
-    combined.push(...factCheckRes.value.candidates);
-    if (factCheckRes.value.warning) {
-      warnings.push(factCheckRes.value.warning);
+  let webSearchCandidateCount = 0;
+  for (const [index, result] of webSearchResults.entries()) {
+    if (result.status === "rejected") {
+      warnings.push(
+        `Penelusuran web_search untuk strategi ${index + 1} gagal atau timeout.`
+      );
+      continue;
     }
-  } else {
-    warnings.push(
-      "Google Fact Check API gagal diakses; menggunakan hasil web_search."
-    );
-  }
 
-  if (webSearchRes.status === "fulfilled") {
-    combined.push(...webSearchRes.value.candidates);
-    searchSummary = webSearchRes.value.searchSummary;
-    webSearchFailedOrEmpty ||= webSearchRes.value.candidates.length === 0;
-  } else {
-    warnings.push(
-      "Penelusuran web_search mengalami gangguan atau timeout sebagian; hasil mengandalkan sumber lain yang tersedia."
-    );
+    combined.push(...result.value.candidates);
+    webSearchCandidateCount += result.value.candidates.length;
   }
 
   const remainingSearchBudget = searchTimeout - (Date.now() - startedAt);
   if (
-    webSearchFailedOrEmpty &&
+    webSearchCandidateCount === 0 &&
     !signal?.aborted &&
     remainingSearchBudget >= 1_500
   ) {
-    const retryQueries = queryPlan.slice(2);
+    const retryQuery = queryPlan[4];
     try {
       const retry = await queryOpenAiWebSearch({
         client,
         model: searchModel,
         extraction,
-        queries: retryQueries,
+        queries: retryQuery ? [retryQuery] : [],
         timeoutMs: remainingSearchBudget,
         signal,
       });
       combined.push(...retry.candidates);
-      if (retry.searchSummary) {
-        searchSummary = [searchSummary, retry.searchSummary]
-          .filter(Boolean)
-          .join("\n\n")
-          .slice(0, 4_000);
-      }
       warnings.push(
         retry.candidates.length > 0
-          ? "Penelusuran awal tidak menghasilkan sumber yang dapat dipakai; kueri alternatif dijalankan dalam batas waktu yang tersisa."
-          : "Kueri alternatif penelusuran juga tidak menghasilkan sumber yang dapat dipakai."
+          ? "Tiga strategi awal tidak menghasilkan kandidat; pencarian kontradiksi dijalankan sebagai fallback dalam anggaran tersisa."
+          : "Pencarian kontradiksi sebagai fallback juga tidak menghasilkan kandidat."
       );
     } catch {
       warnings.push(
-        "Penelusuran alternatif tidak selesai dalam anggaran waktu yang tersisa."
+        "Pencarian kontradiksi sebagai fallback tidak selesai dalam anggaran waktu yang tersisa."
       );
     }
   }
 
-  const deduped = deduplicateEvidence(combined).map((item, idx) => ({
+  const deduped = deduplicateEvidence(combined, 8).map((item, idx) => ({
     ...item,
     id: `SRC-${String(idx + 1).padStart(2, "0")}`,
   }));
 
   return {
     candidates: deduped,
-    searchSummary,
+    warnings,
+  };
+}
+
+export async function retrieveSupplementalEvidence(params: {
+  client: OpenAI;
+  searchModel: string;
+  extraction: ClaimExtractionResult;
+  initialSources: EvidenceSource[];
+  timeoutMs: number;
+  signal?: AbortSignal;
+}): Promise<{
+  candidates: CandidateEvidence[];
+  warnings: string[];
+}> {
+  const {
+    client,
+    searchModel,
+    extraction,
+    initialSources,
+    timeoutMs,
+    signal,
+  } = params;
+  const queries = buildSupplementalEvidenceSearchQueries(extraction);
+  const perQueryTimeout = Math.max(500, Math.floor(timeoutMs * 0.9));
+  const results = await Promise.allSettled(
+    queries.map((query) =>
+      queryOpenAiWebSearch({
+        client,
+        model: searchModel,
+        extraction,
+        queries: [query],
+        timeoutMs: perQueryTimeout,
+        signal,
+      })
+    )
+  );
+  const combined: CandidateEvidence[] = [];
+  const warnings: string[] = [];
+
+  for (const [index, result] of results.entries()) {
+    if (result.status === "rejected") {
+      warnings.push(
+        `Pencarian tambahan berbasis kualitas bukti (${index + 1}) gagal atau timeout.`
+      );
+      continue;
+    }
+    combined.push(...result.value.candidates);
+  }
+
+  if (combined.length === 0) {
+    warnings.push(
+      "Pencarian tambahan tidak menemukan kandidat bukti yang dapat dipakai."
+    );
+  }
+
+  const candidates = deduplicateEvidence(combined, 4).map((item, idx) => ({
+    ...item,
+    id: `SUP-${String(idx + 1).padStart(2, "0")}`,
+  }));
+  if (needsSupplementalEvidenceSearch(initialSources) && candidates.length > 0) {
+    warnings.push(
+      "Bukti awal belum mencakup sumber yang selaras dan berjenis primer; pencarian terarah tambahan dijalankan."
+    );
+  }
+
+  return {
+    candidates,
     warnings,
   };
 }

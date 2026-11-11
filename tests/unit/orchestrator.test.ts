@@ -72,7 +72,6 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
             ratingText: "Salah",
           },
         ],
-        searchSummary: "Bantahan resmi SIM seumur hidup.",
         warnings: [],
       };
     });
@@ -197,7 +196,6 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
           sourceTier: "official_government",
         },
       ],
-      searchSummary: "Arsip gempa 2024 ditemukan.",
       warnings: [],
     });
 
@@ -235,6 +233,12 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
         ],
       })
     );
+    const supplementalSearchSpy = vi
+      .spyOn(retrieverModule, "retrieveSupplementalEvidence")
+      .mockResolvedValue({
+        candidates: [],
+        warnings: ["Pencarian tambahan sintetis tidak menghasilkan sumber."],
+      });
 
     const report = await runAnalysisPipeline({
       rawBuffer: makeMinimalPngBuffer(),
@@ -243,6 +247,7 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
     });
 
     expect(report.verdict.claimVerdict).toBe("UNVERIFIED");
+    expect(supplementalSearchSpy).toHaveBeenCalledOnce();
     expect(report.verdict.explanation).toContain("belum dapat dipastikan");
     expect(
       report.warnings.some((w) => /belum dapat dipastikan/i.test(w))

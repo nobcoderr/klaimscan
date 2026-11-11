@@ -6,6 +6,9 @@ import type {
   PostStance,
   VerdictAssessment,
 } from "@/lib/types";
+import { extractRegistrableRoot } from "@/lib/utils";
+
+export { extractRegistrableRoot } from "@/lib/utils";
 
 export function formatPostClassificationLabel(postStance: PostStance): string {
   switch (postStance) {
@@ -39,25 +42,6 @@ export function verdictToIndonesianLabel(verdict: ClaimVerdict): string {
   }
 }
 
-const MULTI_LEVEL_SUFFIXES = [
-  ".go.id",
-  ".co.id",
-  ".or.id",
-  ".ac.id",
-  ".mil.id",
-  ".sch.id",
-  ".web.id",
-  ".my.id",
-  ".biz.id",
-  ".gov.uk",
-  ".co.uk",
-  ".org.uk",
-  ".gov.au",
-  ".com.au",
-  ".gov.sg",
-  ".gc.ca",
-];
-
 function weightForSource(source: EvidenceSource): number {
   switch (source.evidenceNature) {
     case "primary_record":
@@ -74,34 +58,6 @@ function weightForSource(source: EvidenceSource): number {
     default:
       return 1;
   }
-}
-
-export function extractRegistrableRoot(domainOrUrl: string): string {
-  const raw = domainOrUrl.trim().toLowerCase();
-  if (!raw) return "";
-
-  let host = raw;
-  if (raw.includes("://")) {
-    try {
-      host = new URL(raw).hostname.toLowerCase();
-    } catch {
-      host = raw;
-    }
-  } else {
-    host = raw.split("/")[0]?.split(":")[0] ?? "";
-  }
-
-  host = host.replace(/\.+$/, "").replace(/^www\./, "");
-  if (!host) return "";
-
-  const labels = host.split(".").filter(Boolean);
-  if (labels.length <= 2) return host;
-
-  if (MULTI_LEVEL_SUFFIXES.some((suffix) => host.endsWith(suffix))) {
-    return labels.slice(-Math.min(3, labels.length)).join(".");
-  }
-
-  return labels.slice(-2).join(".");
 }
 
 export function getPublisherCorroborationKey(source: EvidenceSource): string {
@@ -124,7 +80,15 @@ export function deduplicateByPublisher(
   for (const source of sources) {
     const key = getPublisherCorroborationKey(source);
     const existing = byPublisher.get(key);
-    if (!existing || weightForSource(source) > weightForSource(existing)) {
+    const sourceHasDirectContent =
+      source.excerptBasis === "direct_source_content";
+    const existingHasDirectContent =
+      existing?.excerptBasis === "direct_source_content";
+    if (
+      !existing ||
+      weightForSource(source) > weightForSource(existing) ||
+      (sourceHasDirectContent && !existingHasDirectContent)
+    ) {
       byPublisher.set(key, source);
     }
   }
@@ -148,8 +112,7 @@ function hasIndependentCorroboration(sources: EvidenceSource[]): boolean {
   );
   const decisivePrimaryEvidence = nonSyndicated.some(
     (source) =>
-      source.excerptBasis !== "url_only" &&
-      source.excerptBasis !== "fact_check_api_metadata" &&
+      source.excerptBasis === "direct_source_content" &&
       (source.evidenceNature === "primary_record" ||
         source.evidenceNature === "original_research" ||
         source.evidenceNature === "institutional_data" ||

@@ -46,6 +46,53 @@ export function extractDomain(rawUrl: string): string {
   }
 }
 
+const MULTI_LEVEL_DOMAIN_SUFFIXES = [
+  ".go.id",
+  ".co.id",
+  ".or.id",
+  ".ac.id",
+  ".mil.id",
+  ".sch.id",
+  ".web.id",
+  ".my.id",
+  ".biz.id",
+  ".gov.uk",
+  ".co.uk",
+  ".org.uk",
+  ".gov.au",
+  ".com.au",
+  ".gov.sg",
+  ".gc.ca",
+];
+
+export function extractRegistrableRoot(domainOrUrl: string): string {
+  const raw = domainOrUrl.trim().toLowerCase();
+  if (!raw) return "";
+
+  let host = raw;
+  if (raw.includes("://")) {
+    try {
+      host = new URL(raw).hostname.toLowerCase();
+    } catch {
+      host = raw;
+    }
+  } else {
+    host = raw.split("/")[0]?.split(":")[0] ?? "";
+  }
+
+  host = host.replace(/\.+$/, "").replace(/^www\./, "");
+  if (!host) return "";
+
+  const labels = host.split(".").filter(Boolean);
+  if (labels.length <= 2) return host;
+
+  if (MULTI_LEVEL_DOMAIN_SUFFIXES.some((suffix) => host.endsWith(suffix))) {
+    return labels.slice(-Math.min(3, labels.length)).join(".");
+  }
+
+  return labels.slice(-2).join(".");
+}
+
 export const JAKARTA_TIMEZONE = "Asia/Jakarta" as const;
 
 export function getJakartaIsoDate(

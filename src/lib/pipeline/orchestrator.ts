@@ -22,7 +22,11 @@ import {
   compareEvidenceAgainstClaim,
   mapEvaluationsToVerifiedSources,
 } from "./evidence-comparator";
-import { retrieveEvidence } from "./evidence-retriever";
+import {
+  needsSupplementalEvidenceSearch,
+  retrieveEvidence,
+  retrieveSupplementalEvidence,
+} from "./evidence-retriever";
 import { buildInvestigationReport } from "./report-generator";
 import { createInitialPipelineSteps } from "./steps";
 import { computeVerdictFromEvidence } from "./verdict-engine";
@@ -171,8 +175,8 @@ export async function runAnalysisPipeline(params: {
     t0 = Date.now();
     markStep("claim_extraction", { status: "active" });
     const extractionBudgetMs = Math.min(
-      26_000,
-      Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 8_000)
+      22_000,
+      Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 17_000)
     );
     let extraction: ClaimExtractionResult;
     try {
@@ -252,8 +256,8 @@ export async function runAnalysisPipeline(params: {
       t0 = Date.now();
       markStep("evidence_retrieval", { status: "active" });
       const retrievalBudgetMs = Math.min(
-        24_000,
-        Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 4_000)
+        8_000,
+        Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 18_000)
       );
       let retrieval;
       try {
@@ -305,21 +309,92 @@ export async function runAnalysisPipeline(params: {
         );
       } else {
         const comparisonBudgetMs = Math.min(
-          16_000,
-          Math.max(MIN_STAGE_BUDGET_MS, remainingForComparison - 1_500)
+          8_000,
+          Math.max(MIN_STAGE_BUDGET_MS, remainingForComparison - 10_000)
         );
         comparison = await compareEvidenceAgainstClaim({
           client,
           model: env.searchModel,
           extraction,
           candidates: retrieval.candidates,
-          searchSummary: retrieval.searchSummary,
           timeoutMs: comparisonBudgetMs,
           signal: pipelineController.signal,
         });
         if (comparison.warning) {
           warnings.push(comparison.warning);
         }
+      }
+
+      const shouldExpandSearch = needsSupplementalEvidenceSearch(
+        comparison.sources
+      );
+      if (shouldExpandSearch && remainingMs() >= 7_000) {
+        t0 = Date.now();
+        markStep("evidence_retrieval", { status: "active" });
+        const supplementalBudgetMs = Math.min(4_000, remainingMs() - 5_000);
+        const supplemental = await retrieveSupplementalEvidence({
+          client,
+          searchModel: env.searchModel,
+          extraction,
+          initialSources: comparison.sources,
+          timeoutMs: supplementalBudgetMs,
+          signal: pipelineController.signal,
+        });
+        warnings.push(...supplemental.warnings);
+        const initialUrls = new Set(
+          retrieval.candidates.map((candidate) => candidate.url)
+        );
+        const newCandidates = supplemental.candidates.filter(
+          (candidate) => !initialUrls.has(candidate.url)
+        );
+
+        markStep("evidence_retrieval", {
+          status: "completed",
+          durationMs: Date.now() - t0,
+          detail: `${retrieval.candidates.length + newCandidates.length} URL bukti setelah pencarian tambahan`,
+        });
+
+        if (newCandidates.length > 0 && remainingMs() >= MIN_STAGE_BUDGET_MS) {
+          t0 = Date.now();
+          markStep("evidence_comparison", { status: "active" });
+          const supplementalComparison =
+            await compareEvidenceAgainstClaim({
+              client,
+              model: env.searchModel,
+              extraction,
+              candidates: newCandidates,
+              timeoutMs: Math.min(
+                6_000,
+                Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 500)
+              ),
+              signal: pipelineController.signal,
+            });
+          comparison = {
+            sources: [...comparison.sources, ...supplementalComparison.sources],
+            outdatedSignalDetected:
+              comparison.outdatedSignalDetected ||
+              supplementalComparison.outdatedSignalDetected,
+            unresolvedTimeContext:
+              comparison.unresolvedTimeContext ||
+              supplementalComparison.unresolvedTimeContext,
+          };
+          if (supplementalComparison.warning) {
+            warnings.push(supplementalComparison.warning);
+          }
+          markStep("evidence_comparison", {
+            status: "completed",
+            durationMs: Date.now() - t0,
+            detail: `${comparison.sources.filter((source) => source.relation !== "irrelevant").length} sumber relevan setelah evaluasi tambahan`,
+          });
+        } else if (supplemental.candidates.length > 0) {
+          warnings.push(
+            "Kandidat pencarian tambahan ditemukan tetapi anggaran waktu tidak cukup untuk menyelaraskannya; kandidat tersebut tidak digunakan sebagai bukti verdict."
+          );
+        }
+      } else if (shouldExpandSearch) {
+        warnings.push(
+          "Bukti awal belum selaras atau belum memiliki kandidat sumber primer, tetapi pencarian tambahan dilewati karena anggaran waktu pipeline."
+        );
       }
 
       if (comparison.unresolvedTimeContext) {

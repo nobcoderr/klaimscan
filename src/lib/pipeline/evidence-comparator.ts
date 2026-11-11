@@ -1427,7 +1427,6 @@ export async function compareEvidenceAgainstClaim(params: {
   model: string;
   extraction: ClaimExtractionResult;
   candidates: CandidateEvidence[];
-  searchSummary: string;
   timeoutMs?: number;
   signal?: AbortSignal;
 }): Promise<ComparisonOutput> {
@@ -1436,7 +1435,6 @@ export async function compareEvidenceAgainstClaim(params: {
     model,
     extraction,
     candidates,
-    searchSummary,
     timeoutMs = COMPARISON_TIMEOUT_MS,
     signal: parentSignal,
   } = params;
@@ -1574,7 +1572,6 @@ export async function compareEvidenceAgainstClaim(params: {
               visibleTimestamp: extraction.visibleTimestamp ?? null,
               publicationAnchorDate: temporalCtx.publicationAnchorIso,
               temporalAnchorStatus: temporalCtx.temporalAnchorStatus,
-              webSearchNotes: sanitizeUntrustedText(searchSummary, 4000),
               candidates: candidatePayload,
             })}</untrusted_web_evidence>`,
           },

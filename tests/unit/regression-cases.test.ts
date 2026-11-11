@@ -875,6 +875,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           claimEvaluated: extracted.primaryClaim,
           sourceTier: "official_government",
           evidenceNature: "primary_record",
+          excerptBasis: "direct_source_content",
           origin: "openai_web_search",
           rationale: "Sumber resmi Korlantas membantah klaim seumur hidup.",
         },

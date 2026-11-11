@@ -273,6 +273,9 @@ function EvidenceGroupList({
                 {src.excerptBasis === "fact_check_api_metadata" && (
                   <span>Metadata API pemeriksa fakta, bukan kutipan isi artikel.</span>
                 )}
+                {src.excerptBasis === "direct_source_content" && (
+                  <span>Isi sumber asli diperiksa langsung.</span>
+                )}
                 {src.excerptBasis === "url_only" && (
                   <span>Judul/URL saja; isi sumber belum diperiksa.</span>
                 )}

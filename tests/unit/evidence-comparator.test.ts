@@ -764,7 +764,6 @@ describe("evidence-comparator P0 proposition alignment & anti-hallucination", ()
         ...c,
         claimedText: claim,
       })),
-      searchSummary: "Bantahan ditemukan.",
     });
 
     expect(failedOut.warning).toContain("UNVERIFIED");

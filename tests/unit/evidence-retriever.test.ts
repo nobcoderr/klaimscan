@@ -2,13 +2,16 @@ import type OpenAI from "openai";
 import { describe, expect, it, vi } from "vitest";
 import {
   buildEvidenceSearchQueries,
+  buildSupplementalEvidenceSearchQueries,
   classifySourceTier,
   deduplicateEvidence,
   extractDateFromText,
   extractSentenceAwareExcerpt,
+  needsSupplementalEvidenceSearch,
   parseCalendarDateMs,
   queryGoogleFactCheckApi,
   retrieveEvidence,
+  retrieveSupplementalEvidence,
 } from "@/lib/pipeline/evidence-retriever";
 import type { ClaimExtractionResult } from "@/lib/types";
 import {
@@ -243,6 +246,124 @@ describe("evidence-retriever & P0 strict source trust", () => {
     expect(deduped[0].title).toBe("Artikel A Lengkap");
   });
 
+  it("keeps candidate selection diverse across publisher roots and source tiers", () => {
+    const candidates = [
+      ...[1, 2, 3].map((id) => ({
+        id: `media-${id}`,
+        title: `Media ${id}`,
+        url: `https://news${id}.kompas.com/story/${id}`,
+        domain: `news${id}.kompas.com`,
+        publisher: `Kompas ${id}`,
+        publishedAt: null,
+        snippet: `Excerpt ${id}`,
+        origin: "openai_web_search" as const,
+        sourceTier: "credible_media" as const,
+        excerptBasis: "ai_search_summary" as const,
+      })),
+      {
+        id: "official",
+        title: "Official source",
+        url: "https://agency.go.id/announcement",
+        domain: "agency.go.id",
+        publisher: "Agency",
+        publishedAt: null,
+        snippet: "Official excerpt",
+        origin: "openai_web_search" as const,
+        sourceTier: "official_government" as const,
+        excerptBasis: "ai_search_summary" as const,
+      },
+      {
+        id: "fact-check",
+        title: "Fact check",
+        url: "https://checker.example/review",
+        domain: "checker.example",
+        publisher: "Checker",
+        publishedAt: null,
+        snippet: "Fact-check excerpt",
+        origin: "google_fact_check" as const,
+        sourceTier: "fact_checker" as const,
+        excerptBasis: "fact_check_api_metadata" as const,
+      },
+    ];
+
+    const selected = deduplicateEvidence(candidates, 3);
+
+    expect(selected).toHaveLength(3);
+    expect(selected.map((candidate) => candidate.sourceTier)).toEqual([
+      "official_government",
+      "fact_checker",
+      "credible_media",
+    ]);
+  });
+
+  it("expands searches when evidence is unaligned or lacks a primary-source candidate", () => {
+    expect(needsSupplementalEvidenceSearch([])).toBe(true);
+    expect(
+      needsSupplementalEvidenceSearch([
+        {
+          id: "SRC-IMAGE",
+          title: "Image verification",
+          url: "https://agency.go.id/image",
+          domain: "agency.go.id",
+          publisher: "Agency",
+          publishedAt: null,
+          snippet: "Image only.",
+          relation: "supporting",
+          targetAspect: "image_authenticity",
+          claimEvaluated: "Claim",
+          sourceTier: "official_government",
+          evidenceNature: "primary_record",
+          excerptBasis: "direct_source_content",
+          origin: "openai_web_search",
+          rationale: "Only the visual was checked.",
+        },
+      ])
+    ).toBe(true);
+    expect(
+      needsSupplementalEvidenceSearch([
+        {
+          id: "SRC-01",
+          title: "Secondary report",
+          url: "https://news.example/article",
+          domain: "news.example",
+          publisher: "News",
+          publishedAt: null,
+          snippet: "Report",
+          relation: "supporting",
+          claimEvaluated: "Claim",
+          sourceTier: "credible_media",
+          evidenceNature: "independent_reporting",
+          origin: "openai_web_search",
+          rationale: "Aligned reporting.",
+        },
+      ])
+    ).toBe(true);
+    expect(
+      needsSupplementalEvidenceSearch([
+        {
+          id: "SRC-02",
+          title: "Primary record",
+          url: "https://agency.go.id/record",
+          domain: "agency.go.id",
+          publisher: "Agency",
+          publishedAt: null,
+          snippet: "Record",
+          relation: "supporting",
+          claimEvaluated: "Claim",
+          sourceTier: "official_government",
+          evidenceNature: "primary_record",
+          origin: "openai_web_search",
+          rationale: "Aligned record.",
+        },
+      ])
+    ).toBe(false);
+    expect(
+      buildSupplementalEvidenceSearchQueries(makeExtraction()).some((query) =>
+        query.includes("Airlangga Hartarto")
+      )
+    ).toBe(true);
+  });
+
   it("handles Google Fact Check API HTTP failures gracefully with safe warning", async () => {
     const failingFetch = async () =>
       new Response("Service Unavailable", { status: 503 });
@@ -318,19 +439,26 @@ describe("evidence-retriever & P0 strict source trust", () => {
     });
 
     expect(result.candidates).toHaveLength(1);
+    expect(create).toHaveBeenCalledTimes(3);
     expect(result.candidates[0].sourceTier).toBe("credible_media");
     expect(result.candidates[0].publishedAt).toBeNull();
     expect(result.warnings.some((warning) => /FACTCHECK_API_KEY/.test(warning))).toBe(
       true
     );
-    const request = create.mock.calls[0]?.[0] as { input?: string } | undefined;
-    expect(request?.input).toContain("primary source");
-    expect(request?.input).toContain("independent reporting");
+    const searchInputs = create.mock.calls.map(
+      (call) => (call[0] as { input?: string }).input ?? ""
+    );
+    expect(new Set(searchInputs).size).toBe(3);
+    expect(searchInputs.some((input) => input.includes("primary source"))).toBe(
+      true
+    );
   });
 
-  it("retries with alternate evidence queries when the first web search returns no candidates", async () => {
+  it("runs initial strategies independently and retries with contradiction search when all are empty", async () => {
     const create = vi
       .fn()
+      .mockResolvedValueOnce({ output: [], output_text: "" })
+      .mockResolvedValueOnce({ output: [], output_text: "" })
       .mockResolvedValueOnce({ output: [], output_text: "" })
       .mockResolvedValueOnce({
         output: [
@@ -359,15 +487,64 @@ describe("evidence-retriever & P0 strict source trust", () => {
       timeoutMs: 8_000,
     });
 
-    expect(create).toHaveBeenCalledTimes(2);
+    expect(create).toHaveBeenCalledTimes(4);
     expect(result.candidates).toHaveLength(1);
-    expect(result.warnings.some((warning) => /kueri alternatif/i.test(warning))).toBe(
+    expect(result.warnings.some((warning) => /fallback/i.test(warning))).toBe(
       true
     );
-    const retryRequest = create.mock.calls[1]?.[0] as
+    const initialInputs = create.mock.calls
+      .slice(0, 3)
+      .map((call) => (call[0] as { input?: string }).input ?? "");
+    expect(new Set(initialInputs).size).toBe(3);
+    const retryRequest = create.mock.calls[3]?.[0] as
       | { input?: string }
       | undefined;
     expect(retryRequest?.input).toContain("disputed denied contradicted");
+  });
+
+  it("runs supplemental strategies independently and caps selected candidates", async () => {
+    let responseIndex = 0;
+    const create = vi.fn().mockImplementation(async () => {
+      responseIndex += 1;
+      return {
+        output: [
+          {
+            type: "web_search_call",
+            action: {
+              sources: [
+                {
+                  url: `https://source-${responseIndex}.example.org/article/${responseIndex}`,
+                  title: `Source ${responseIndex}`,
+                },
+              ],
+            },
+          },
+        ],
+        output_text: "",
+      };
+    });
+    const client = {
+      responses: { create },
+    } as unknown as OpenAI;
+
+    const result = await retrieveSupplementalEvidence({
+      client,
+      searchModel: "gpt-5.4-mini",
+      extraction: makeExtraction(),
+      initialSources: [],
+      timeoutMs: 5_000,
+    });
+
+    expect(create).toHaveBeenCalledTimes(3);
+    expect(result.candidates).toHaveLength(3);
+    expect(result.candidates.length).toBeLessThanOrEqual(4);
+    const inputs = create.mock.calls.map(
+      (call) => (call[0] as { input?: string }).input ?? ""
+    );
+    expect(new Set(inputs).size).toBe(3);
+    expect(result.warnings.some((warning) => /pencarian terarah/i.test(warning))).toBe(
+      true
+    );
   });
 
   it("extracts and parses calendar dates from ISO, URL timestamps, and Indonesian/English date strings", () => {

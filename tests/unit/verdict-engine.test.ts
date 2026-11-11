@@ -104,6 +104,54 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
     expect(verdict.claimVerdict).toBe("UNVERIFIED");
   });
 
+  it("does not let one AI search summary classified as primary evidence decide a verdict", () => {
+    const singleSummary = computeVerdictFromEvidence({
+      primaryClaim: "Kebijakan telah diumumkan",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan pengumuman.",
+      sources: [
+        makeSource({
+          relation: "supporting",
+          evidenceNature: "primary_record",
+          excerptBasis: "ai_search_summary",
+          sourceTier: "official_government",
+        }),
+      ],
+    });
+
+    expect(singleSummary.claimVerdict).toBe("UNVERIFIED");
+
+    const independentlyCorroboratedSummaries = computeVerdictFromEvidence({
+      primaryClaim: "Kebijakan telah diumumkan",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan pengumuman.",
+      sources: [
+        makeSource({
+          id: "SRC-01",
+          url: "https://publisher-one.example/story",
+          domain: "publisher-one.example",
+          publisher: "Publisher One",
+          relation: "supporting",
+          evidenceNature: "independent_reporting",
+          excerptBasis: "ai_search_summary",
+          sourceTier: "credible_media",
+        }),
+        makeSource({
+          id: "SRC-02",
+          url: "https://publisher-two.example/story",
+          domain: "publisher-two.example",
+          publisher: "Publisher Two",
+          relation: "supporting",
+          evidenceNature: "independent_reporting",
+          excerptBasis: "ai_search_summary",
+          sourceTier: "credible_media",
+        }),
+      ],
+    });
+
+    expect(independentlyCorroboratedSummaries.claimVerdict).toBe("TRUE");
+  });
+
   it("prevents multiple articles from the same publisher from counting as independent corroboration", () => {
     const duplicatedKompas = [
       makeSource({
@@ -253,6 +301,7 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           id: "SRC-01",
           relation: "supporting",
           evidenceNature: "primary_record",
+          excerptBasis: "direct_source_content",
           evaluatedAtomicClaimId: "AC-01",
         }),
         makeSource({
@@ -261,6 +310,7 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           domain: "news.example.net",
           relation: "contradicting",
           evidenceNature: "primary_record",
+          excerptBasis: "direct_source_content",
           evaluatedAtomicClaimId: "AC-02",
         }),
       ],
@@ -333,6 +383,7 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           relation: "supporting",
           targetAspect: "event_occurrence",
           evidenceNature: "direct_statement",
+          excerptBasis: "direct_source_content",
           evaluatedAtomicClaimId: "AC-01",
         }),
       ],
@@ -425,6 +476,7 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           relation: "supporting",
           sourceTier: "official_government",
           evidenceNature: "direct_statement",
+          excerptBasis: "direct_source_content",
           targetAspect: "plan_or_target",
         }),
       ],
@@ -484,6 +536,7 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           relation: "supporting",
           targetAspect: "plan_or_target",
           evidenceNature: "direct_statement",
+          excerptBasis: "direct_source_content",
           evaluatedAtomicClaimIds: ["AC-01", "AC-02", "AC-03"],
           claimEvaluated:
             "Pengumuman, target dua bulan, dan saldo awal Rp50.000",

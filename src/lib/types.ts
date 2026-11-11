@@ -66,6 +66,7 @@ export type EvidenceIndependence = "independent" | "syndicated" | "unknown";
 export type EvidenceExcerptBasis =
   | "fact_check_api_metadata"
   | "ai_search_summary"
+  | "direct_source_content"
   | "url_only";
 
 export type EvidenceTargetAspect =
