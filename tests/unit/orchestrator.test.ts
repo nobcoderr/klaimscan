@@ -91,7 +91,7 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
 
     expect(compareSpy).not.toHaveBeenCalled();
     expect(report.isDemo).toBe(false);
-    expect(report.verdict.claimVerdict).toBe("FALSE");
+    expect(report.verdict.claimVerdict).toBe("UNVERIFIED");
     expect(report.claimExtraction.textVerificationNotice).toBe(
       "Verifikasi dilakukan terhadap klaim tekstual. Keaslian foto sampul tidak diperiksa."
     );
@@ -142,5 +142,110 @@ describe("orchestrator P1 whole-pipeline deadline & graceful degradation", () =>
         deadlineMs: 5_000,
       })
     ).rejects.toBeInstanceOf(PipelineTimeoutError);
+  }, 10_000);
+
+  it("flags unconfirmed temporal context and holds UNVERIFIED when screenshot says 'hari ini' without visible publication calendar date", async () => {
+    vi.spyOn(envModule, "getServerEnvConfig").mockReturnValue({
+      openAiApiKey: "sk-proj-test-key-1234567890",
+      factCheckApiKey: undefined,
+      visionModel: "gpt-5.4-mini",
+      searchModel: "gpt-5.4-mini",
+      usingFallbackVisionModel: false,
+      usingFallbackSearchModel: false,
+      publicAnalyzeEnabled: true,
+      analyzeAccessToken: undefined,
+      rateLimitMaxRequests: 12,
+      rateLimitWindowMs: 60_000,
+      globalHourlyLimit: 60,
+      maxConcurrentAnalyses: 4,
+      pipelineDeadlineMs: 20_000,
+      trustedProxyMode: "none",
+      upstashRedisRestUrl: undefined,
+      upstashRedisRestToken: undefined,
+      requireDistributedQuota: false,
+    });
+
+    vi.spyOn(extractorModule, "extractClaimFromScreenshot").mockResolvedValue({
+      extractedText: "Gempa bumi terjadi hari ini di wilayah selatan.",
+      primaryClaim: "Gempa bumi terjadi hari ini di wilayah selatan",
+      secondaryClaims: [],
+      topicCategory: "Bencana",
+      claimDateMentioned: "hari ini",
+      language: "id",
+      platform: "Instagram",
+      visibleAccountHandle: "@info_bencana",
+      visibleAccountName: "Info Bencana",
+      visiblePostUrl: null,
+      visibleTimestamp: null,
+      postStance: "asserting_claim",
+      postStanceSummary: "Akun menyebut peristiwa terjadi hari ini.",
+      containsCheckableClaim: true,
+      searchQueries: ["gempa bumi wilayah selatan"],
+    });
+
+    vi.spyOn(retrieverModule, "retrieveEvidence").mockResolvedValue({
+      candidates: [
+        {
+          id: "SRC-01",
+          title: "BMKG Laporkan Gempa Wilayah Selatan",
+          url: "https://bmkg.go.id/berita/gempa-selatan",
+          domain: "bmkg.go.id",
+          publisher: "BMKG",
+          publishedAt: "2024-05-12",
+          snippet: "BMKG mencatat gempa terjadi pada Mei 2024.",
+          origin: "openai_web_search",
+          sourceTier: "official_government",
+        },
+      ],
+      searchSummary: "Arsip gempa 2024 ditemukan.",
+      warnings: [],
+    });
+
+    vi.spyOn(comparatorModule, "compareEvidenceAgainstClaim").mockResolvedValue(
+      comparatorModule.mapEvaluationsToVerifiedSources({
+        candidates: [
+          {
+            id: "SRC-01",
+            title: "BMKG Laporkan Gempa Wilayah Selatan",
+            url: "https://bmkg.go.id/berita/gempa-selatan",
+            domain: "bmkg.go.id",
+            publisher: "BMKG",
+            publishedAt: "2024-05-12",
+            snippet: "BMKG mencatat gempa terjadi pada Mei 2024.",
+            origin: "openai_web_search",
+            sourceTier: "official_government",
+          },
+        ],
+        primaryClaim: "Gempa bumi terjadi hari ini di wilayah selatan",
+        claimDateMentioned: "hari ini",
+        visibleTimestamp: null,
+        evaluations: [
+          {
+            id: "SRC-01",
+            addressesSameProposition: true,
+            matchesTimeContext: true,
+            temporalCompatibility: "current_match",
+            sourceEventDate: "2024-05-12",
+            targetAspect: "event_occurrence",
+            relation: "supporting",
+            claimEvaluated: "Gempa bumi terjadi di wilayah selatan",
+            rationale: "BMKG mengonfirmasi kejadian.",
+            mentionsOutdatedContext: false,
+          },
+        ],
+      })
+    );
+
+    const report = await runAnalysisPipeline({
+      rawBuffer: makeMinimalPngBuffer(),
+      fileName: "old-relative-date.png",
+      declaredMimeType: "image/png",
+    });
+
+    expect(report.verdict.claimVerdict).toBe("UNVERIFIED");
+    expect(report.verdict.explanation).toContain("belum dapat dipastikan");
+    expect(
+      report.warnings.some((w) => /belum dapat dipastikan/i.test(w))
+    ).toBe(true);
   }, 10_000);
 });

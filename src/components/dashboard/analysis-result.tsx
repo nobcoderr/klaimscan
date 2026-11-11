@@ -34,6 +34,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type EvidenceSource,
+  type EvidenceNature,
   type EvidenceTargetAspect,
   type InvestigationReport,
   type OcrRegionRole,
@@ -65,8 +66,12 @@ function formatAspectLabel(aspect?: EvidenceTargetAspect): string | null {
       return "Aspek: Foto Sampul (Dikecualikan)";
     case "event_occurrence":
       return "Aspek: Kejadian / Niat";
-    case "official_legal_status":
-      return "Aspek: Proses Formal / Hukum";
+    case "status_or_stage":
+      return "Aspek: Status / Tahap";
+    case "plan_or_target":
+      return "Aspek: Rencana / Target";
+    case "implementation_or_outcome":
+      return "Aspek: Implementasi / Hasil";
     case "text_claim":
       return "Aspek: Klaim Teks";
     default:
@@ -86,6 +91,27 @@ function formatTemporalLabel(
       return "Temporal: Sesuai Periode";
     default:
       return null;
+  }
+}
+
+function formatEvidenceNatureLabel(nature?: EvidenceNature): string {
+  switch (nature) {
+    case "primary_record":
+      return "Rekaman primer";
+    case "direct_statement":
+      return "Pernyataan langsung";
+    case "original_research":
+      return "Penelitian asli";
+    case "institutional_data":
+      return "Data institusi";
+    case "independent_reporting":
+      return "Pelaporan independen";
+    case "fact_check":
+      return "Pemeriksaan fakta";
+    case "commentary":
+      return "Komentar";
+    default:
+      return "Jenis bukti belum dipastikan";
   }
 }
 
@@ -112,11 +138,15 @@ function getQualifiedLabelVariant(
   label: string
 ): "verified" | "threat" | "warning" | "default" {
   const upper = label.toUpperCase();
-  if (upper.includes("FALSE")) return "threat";
-  if (upper.includes("CONFIRMED") || upper.includes("AUTHENTIC")) {
+  if (upper.includes("DIBANTAH")) return "threat";
+  if (upper.includes("TERKONFIRMASI")) {
     return "verified";
   }
-  if (upper.includes("MISLEADING") || upper.includes("OUTDATED")) {
+  if (
+    upper.includes("MENYESATKAN") ||
+    upper.includes("KEDALUWARSA") ||
+    upper.includes("PARSIAL")
+  ) {
     return "warning";
   }
   return "default";
@@ -176,7 +206,28 @@ function EvidenceGroupList({
                       </Badge>
                     )}
                     {src.publishedAt && (
-                      <Badge variant="outline">Tgl: {src.publishedAt}</Badge>
+                      <Badge variant="outline">
+                        {src.publicationDateBasis === "verified"
+                          ? "Terbit terverifikasi"
+                          : "Terbit belum diverifikasi"}
+                        : {src.publishedAt}
+                      </Badge>
+                    )}
+                    {!src.publishedAt && src.inferredPublishedAt && (
+                      <Badge variant="outline">
+                        Terbit diperkirakan dari URL: {src.inferredPublishedAt}
+                      </Badge>
+                    )}
+                    {src.sourceEventDate && (
+                      <Badge variant="outline">
+                        Tanggal peristiwa{" "}
+                        {src.sourceEventDateBasis === "reported"
+                          ? "(disebut sumber)"
+                          : src.sourceEventDateBasis === "inferred"
+                            ? "(perkiraan)"
+                            : "(belum diketahui)"}
+                        : {src.sourceEventDate}
+                      </Badge>
                     )}
                     {src.temporalStatus &&
                       src.temporalStatus !== "unclear" &&
@@ -205,6 +256,27 @@ function EvidenceGroupList({
                 </a>
               </div>
 
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-[#8BA4C0]">
+                <Badge variant="outline">
+                  {formatEvidenceNatureLabel(src.evidenceNature)}
+                </Badge>
+                <Badge variant="outline">
+                  {src.independence === "syndicated"
+                    ? "Sindikasi / bukan independen"
+                    : src.independence === "independent"
+                      ? "Independensi dinilai"
+                      : "Independensi belum diketahui"}
+                </Badge>
+                {src.excerptBasis === "ai_search_summary" && (
+                  <span>Ringkasan hasil pencarian AI, bukan kutipan artikel.</span>
+                )}
+                {src.excerptBasis === "fact_check_api_metadata" && (
+                  <span>Metadata API pemeriksa fakta, bukan kutipan isi artikel.</span>
+                )}
+                {src.excerptBasis === "url_only" && (
+                  <span>Judul/URL saja; isi sumber belum diperiksa.</span>
+                )}
+              </div>
               <p className="mt-2 text-xs leading-relaxed text-[#8BA4C0]">
                 {src.snippet}
               </p>
@@ -629,7 +701,12 @@ export function AnalysisResult({
                   <p className="font-mono text-[11px] text-[#8BA4C0]">
                     {report.supportingEvidence.length} mendukung ·{" "}
                     {report.contradictingEvidence.length} membantah ·{" "}
-                    {report.partialContextEvidence.length} konteks
+                    {report.partialContextEvidence.length} konteks parsial ·{" "}
+                    {(report.insufficientEvidence ??
+                      report.evidenceSources.filter(
+                        (source) => source.relation === "insufficient"
+                      )).length}{" "}
+                    bukti belum cukup
                   </p>
                 </div>
               </div>
@@ -644,13 +721,30 @@ export function AnalysisResult({
               </Button>
             </div>
 
-            <p className="text-sm leading-relaxed text-[#8BA4C0]">
-              {report.publicOriginTrace.clarificationSources.length > 0
-                ? `Rujukan terindeks: ${report.publicOriginTrace.clarificationSources
-                    .map((s) => s.publisher)
-                    .join(", ")}`
-                : "Belum ditemukan rujukan resmi atau artikel fact-check yang memadai."}
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs leading-relaxed text-[#8BA4C0]">
+                {report.evidenceSources.some(
+                  (source) => source.relation !== "irrelevant"
+                )
+                  ? "Sumber yang diperiksa; bukti belum cukup dibedakan dari sumber yang tidak relevan:"
+                  : "Belum ditemukan sumber relevan yang cukup untuk membentuk penilaian."}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {report.evidenceSources
+                  .filter((source) => source.relation !== "irrelevant")
+                  .map((source) => (
+                    <a
+                      key={`${source.id}-${source.url}`}
+                      href={source.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-md border border-[#254159] bg-[#0D2133] px-2 py-1 text-xs text-[#45DDEB] hover:border-[#45DDEB]/60"
+                    >
+                      {source.publisher} · {source.relation}
+                    </a>
+                  ))}
+              </div>
+            </div>
 
             <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#254159]/70 pt-3">
               {report.verdict.evidenceMetrics.officialOrFactCheckCount > 0 ? (
@@ -945,6 +1039,72 @@ export function AnalysisResult({
                             </dd>
                           </div>
                         </dl>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          <Badge variant="outline">
+                            Polaritas: {nc.polarity ?? "belum ditentukan"}
+                          </Badge>
+                          <Badge variant="outline">
+                            Modus: {nc.modality ?? "unknown"}
+                          </Badge>
+                          <Badge variant="outline">
+                            Kepastian teks: {nc.epistemicCertainty ?? "unknown"}
+                          </Badge>
+                          <Badge variant="outline">
+                            Jenis: {nc.assertionType ?? "unknown"}
+                          </Badge>
+                        </div>
+                        {((nc.namedEntities?.length ?? 0) > 0 ||
+                          (nc.numericValues?.length ?? 0) > 0 ||
+                          (nc.geographicContext?.length ?? 0) > 0 ||
+                          (nc.requiredConditions?.length ?? 0) > 0) && (
+                          <dl className="mt-2 grid gap-1 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0]">
+                            {(nc.namedEntities?.length ?? 0) > 0 && (
+                              <div>
+                                <dt className="inline font-mono text-[10px] uppercase">
+                                  Entitas:
+                                </dt>{" "}
+                                <dd className="inline text-[#F3F8FF]/90">
+                                  {nc.namedEntities?.join(", ")}
+                                </dd>
+                              </div>
+                            )}
+                            {(nc.numericValues?.length ?? 0) > 0 && (
+                              <div>
+                                <dt className="font-mono text-[10px] uppercase">
+                                  Angka / satuan / kondisi
+                                </dt>
+                                <dd className="text-[#F3F8FF]/90">
+                                  {nc.numericValues
+                                    ?.map(
+                                      (value) =>
+                                        `${value.value}${value.unit ? ` ${value.unit}` : ""} — ${value.context}`
+                                    )
+                                    .join("; ")}
+                                </dd>
+                              </div>
+                            )}
+                            {(nc.geographicContext?.length ?? 0) > 0 && (
+                              <div>
+                                <dt className="inline font-mono text-[10px] uppercase">
+                                  Geografi:
+                                </dt>{" "}
+                                <dd className="inline text-[#F3F8FF]/90">
+                                  {nc.geographicContext?.join(", ")}
+                                </dd>
+                              </div>
+                            )}
+                            {(nc.requiredConditions?.length ?? 0) > 0 && (
+                              <div>
+                                <dt className="inline font-mono text-[10px] uppercase">
+                                  Kondisi:
+                                </dt>{" "}
+                                <dd className="inline text-[#F3F8FF]/90">
+                                  {nc.requiredConditions?.join("; ")}
+                                </dd>
+                              </div>
+                            )}
+                          </dl>
+                        )}
                         {nc.semanticNote && (
                           <p className="mt-2 rounded bg-[#0D2133] px-2 py-1 text-[11px] text-[#FBBF24]">
                             {nc.semanticNote}
@@ -1068,6 +1228,23 @@ export function AnalysisResult({
                     emptyLabel=""
                     items={report.partialContextEvidence}
                     accentClass="text-[#FBBF24]"
+                  />
+                )}
+
+                {(report.insufficientEvidence ??
+                  report.evidenceSources.filter(
+                    (source) => source.relation === "insufficient"
+                  )).length > 0 && (
+                  <EvidenceGroupList
+                    title="Insufficient Evidence (Terkait, Bukti Belum Cukup)"
+                    emptyLabel=""
+                    items={
+                      report.insufficientEvidence ??
+                      report.evidenceSources.filter(
+                        (source) => source.relation === "insufficient"
+                      )
+                    }
+                    accentClass="text-[#8BA4C0]"
                   />
                 )}
 
@@ -1312,7 +1489,7 @@ export function AnalysisResult({
 
               <div>
                 <h4 className="mb-2 font-heading text-sm font-semibold text-[#F3F8FF]">
-                  Sumber Publik &amp; Klarifikasi Terobservasi
+                  Sumber Resmi &amp; Pemeriksa Fakta Terobservasi
                 </h4>
                 {report.publicOriginTrace.clarificationSources.length === 0 ? (
                   <p className="text-xs text-[#8BA4C0]">

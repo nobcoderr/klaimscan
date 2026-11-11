@@ -1,18 +1,112 @@
-import { describe, expect, it } from "vitest";
+import type OpenAI from "openai";
+import { describe, expect, it, vi } from "vitest";
 import {
+  buildEvidenceSearchQueries,
   classifySourceTier,
   deduplicateEvidence,
   extractDateFromText,
   extractSentenceAwareExcerpt,
   parseCalendarDateMs,
   queryGoogleFactCheckApi,
+  retrieveEvidence,
 } from "@/lib/pipeline/evidence-retriever";
+import type { ClaimExtractionResult } from "@/lib/types";
 import {
   getJakartaIsoDate,
   resolveIndonesianRelativeIsoDate,
 } from "@/lib/utils";
 
+function makeExtraction(
+  overrides: Partial<ClaimExtractionResult> = {}
+): ClaimExtractionResult {
+  return {
+    extractedText: "Program pemerintah akan berjalan dalam dua bulan.",
+    extractedHeadline:
+      "Program Satu Orang Satu Rekening terealisasi dua bulan lagi",
+    graphicOverlayTexts: [],
+    extractedCaption: null,
+    clarificationOrDebunkText: null,
+    primaryClaim:
+      "Pemerintah menargetkan Program Satu Orang Satu Rekening berjalan dua bulan lagi bersama Airlangga Hartarto.",
+    secondaryClaims: [],
+    normalizedClaims: [
+      {
+        id: "NC-01",
+        subject: "Menteri Koordinator Airlangga Hartarto",
+        predicateAction: "menargetkan",
+        objectTarget: "Program Satu Orang Satu Rekening",
+        proposition:
+          "Airlangga Hartarto menargetkan Program Satu Orang Satu Rekening berjalan dua bulan lagi",
+        eventDate: null,
+        legalOrAdministrativeStatus: null,
+        sourceRole: "headline",
+      },
+      {
+        id: "NC-02",
+        subject: "Badan Komunikasi Pemerintah (Bakom)",
+        predicateAction: "mengumumkan",
+        objectTarget: "Program Satu Orang Satu Rekening",
+        proposition:
+          "Bakom mengumumkan Program Satu Orang Satu Rekening",
+        eventDate: null,
+        legalOrAdministrativeStatus: null,
+        sourceRole: "caption",
+      },
+    ],
+    atomicClaims: [],
+    topicCategory: "Kebijakan Publik",
+    claimDateMentioned: "dua bulan lagi",
+    language: "id",
+    platform: "Instagram",
+    visibleAccountHandle: null,
+    visibleAccountName: null,
+    visiblePostUrl: null,
+    visibleTimestamp: null,
+    postStance: "asserting_claim",
+    postStanceSummary: "Unggahan menyampaikan target program.",
+    containsCheckableClaim: true,
+    searchQueries: ["Program Satu Orang Satu Rekening dua bulan lagi"],
+    ...overrides,
+  };
+}
+
 describe("evidence-retriever & P0 strict source trust", () => {
+  it("builds diverse topic-neutral searches for exact claims, primary evidence, reporting, contradiction, and time", () => {
+    const extraction = makeExtraction({
+      primaryClaim:
+        "Entitas A menaikkan tarif layanan dari 10 menjadi 12 unit pada periode tertentu.",
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Entitas A",
+          predicateAction: "menaikkan",
+          objectTarget: "tarif layanan",
+          proposition:
+            "Entitas A menaikkan tarif layanan dari 10 menjadi 12 unit.",
+          eventDate: "periode tertentu",
+          legalOrAdministrativeStatus: null,
+          sourceRole: "headline",
+          namedEntities: ["Entitas A"],
+          numericValues: [
+            { value: "10", unit: "unit", context: "tarif sebelumnya" },
+            { value: "12", unit: "unit", context: "tarif baru" },
+          ],
+        },
+      ],
+    });
+    const queries = buildEvidenceSearchQueries(extraction);
+
+    expect(queries).toHaveLength(6);
+    expect(queries[0]).toContain("Entitas A menaikkan tarif");
+    expect(queries.some((query) => query.includes("primary source"))).toBe(true);
+    expect(queries.some((query) => query.includes("independent reporting"))).toBe(
+      true
+    );
+    expect(queries.some((query) => query.includes("disputed denied"))).toBe(true);
+    expect(queries.some((query) => query.includes("date timeline"))).toBe(true);
+    expect(queries.every((query) => !query.includes("site:"))).toBe(true);
+  });
+
   it("classifies genuine official government, curated fact-checker, and media domains accurately", () => {
     expect(
       classifySourceTier(
@@ -161,6 +255,119 @@ describe("evidence-retriever & P0 strict source trust", () => {
 
     expect(res.candidates).toEqual([]);
     expect(res.warning).toBeTruthy();
+  });
+
+  it("keeps Google review publication dates separate from the date a claim was made", async () => {
+    const successfulFetch = async () =>
+      new Response(
+        JSON.stringify({
+          claims: [
+            {
+              text: "Program akan diluncurkan.",
+              claimDate: "2026-11-02",
+              claimReview: [
+                {
+                  publisher: { name: "Fact Checker", site: "facts.example" },
+                  url: "https://facts.example/review/program",
+                  title: "Pemeriksaan program",
+                  reviewDate: "2026-11-05",
+                  textualRating: "Benar",
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } }
+      );
+    const result = await queryGoogleFactCheckApi({
+      queries: ["program"],
+      apiKey: "test-key",
+      fetchImpl: successfulFetch as typeof fetch,
+    });
+
+    expect(result.candidates[0].publishedAt).toBe("2026-11-05");
+    expect(result.candidates[0].publicationDateBasis).toBe("verified");
+    expect(result.candidates[0].claimDate).toBe("2026-11-02");
+  });
+
+  it("falls back to available web search when no official source is returned", async () => {
+    const create = vi.fn().mockResolvedValue({
+      output: [
+        {
+          type: "web_search_call",
+          action: {
+            sources: [
+              {
+                url: "https://www.antaranews.com/berita/123",
+                title: "Berita terkait program",
+              },
+            ],
+          },
+        },
+      ],
+      output_text: "",
+    });
+    const client = {
+      responses: { create },
+    } as unknown as OpenAI;
+
+    const result = await retrieveEvidence({
+      client,
+      searchModel: "gpt-5.4-mini",
+      extraction: makeExtraction(),
+    });
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.candidates[0].sourceTier).toBe("credible_media");
+    expect(result.candidates[0].publishedAt).toBeNull();
+    expect(result.warnings.some((warning) => /FACTCHECK_API_KEY/.test(warning))).toBe(
+      true
+    );
+    const request = create.mock.calls[0]?.[0] as { input?: string } | undefined;
+    expect(request?.input).toContain("primary source");
+    expect(request?.input).toContain("independent reporting");
+  });
+
+  it("retries with alternate evidence queries when the first web search returns no candidates", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValueOnce({ output: [], output_text: "" })
+      .mockResolvedValueOnce({
+        output: [
+          {
+            type: "web_search_call",
+            action: {
+              sources: [
+                {
+                  url: "https://records.example.org/item/7",
+                  title: "Primary record",
+                },
+              ],
+            },
+          },
+        ],
+        output_text: "",
+      });
+    const client = {
+      responses: { create },
+    } as unknown as OpenAI;
+
+    const result = await retrieveEvidence({
+      client,
+      searchModel: "gpt-5.4-mini",
+      extraction: makeExtraction(),
+      timeoutMs: 8_000,
+    });
+
+    expect(create).toHaveBeenCalledTimes(2);
+    expect(result.candidates).toHaveLength(1);
+    expect(result.warnings.some((warning) => /kueri alternatif/i.test(warning))).toBe(
+      true
+    );
+    const retryRequest = create.mock.calls[1]?.[0] as
+      | { input?: string }
+      | undefined;
+    expect(retryRequest?.input).toContain("disputed denied contradicted");
   });
 
   it("extracts and parses calendar dates from ISO, URL timestamps, and Indonesian/English date strings", () => {

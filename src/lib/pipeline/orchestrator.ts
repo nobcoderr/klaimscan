@@ -228,6 +228,7 @@ export async function runAnalysisPipeline(params: {
     let comparison: {
       sources: import("@/lib/types").EvidenceSource[];
       outdatedSignalDetected: boolean;
+      unresolvedTimeContext?: boolean;
       warning?: string;
     };
 
@@ -295,11 +296,12 @@ export async function runAnalysisPipeline(params: {
           primaryClaim: extraction.primaryClaim,
           atomicClaims: extraction.atomicClaims,
           claimDateMentioned: extraction.claimDateMentioned,
+          visibleTimestamp: extraction.visibleTimestamp ?? null,
           referenceDateIso: todayIso,
           evaluations: [],
         });
         warnings.push(
-          "Anggaran waktu pipeline tersisa terlalu singkat; pembandingan bukti menggunakan fallback penilaian terstruktur yang konservatif."
+          "Anggaran waktu pipeline tersisa terlalu singkat; fallback pembanding AI tidak dapat menilai kesetaraan semantik penuh sehingga status dijaga konservatif menjadi UNVERIFIED."
         );
       } else {
         const comparisonBudgetMs = Math.min(
@@ -320,6 +322,12 @@ export async function runAnalysisPipeline(params: {
         }
       }
 
+      if (comparison.unresolvedTimeContext) {
+        warnings.push(
+          "Klaim memuat kata keterangan waktu relatif ('hari ini'/'kemarin'/dll.) tanpa tanggal kalender publikasi asli pada screenshot; konteks waktunya belum dapat dipastikan terhadap tanggal unggah."
+        );
+      }
+
       markStep("evidence_comparison", {
         status: "completed",
         durationMs: Date.now() - t0,
@@ -338,6 +346,7 @@ export async function runAnalysisPipeline(params: {
       atomicClaims: extraction.atomicClaims,
       outdatedSignalDetected: comparison.outdatedSignalDetected,
       containsCheckableClaim: extraction.containsCheckableClaim,
+      unresolvedTimeContext: comparison.unresolvedTimeContext,
     });
     markStep("verdict_engine", {
       status: "completed",

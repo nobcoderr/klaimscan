@@ -41,6 +41,9 @@ export function buildInvestigationReport(params: {
   const partialContextEvidence = params.sources.filter(
     (s) => s.relation === "partial_context"
   );
+  const insufficientEvidence = params.sources.filter(
+    (s) => s.relation === "insufficient"
+  );
 
   return {
     caseId,
@@ -54,6 +57,7 @@ export function buildInvestigationReport(params: {
     supportingEvidence,
     contradictingEvidence,
     partialContextEvidence,
+    insufficientEvidence,
     publicOriginTrace: buildPublicOriginTrace({
       extraction: params.extraction,
       sources: params.sources,

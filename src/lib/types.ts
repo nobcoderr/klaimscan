@@ -19,13 +19,62 @@ export type EvidenceRelation =
   | "supporting"
   | "contradicting"
   | "partial_context"
+  | "insufficient"
   | "irrelevant";
+
+export type ClaimModality =
+  | "assertion"
+  | "allegation"
+  | "intention"
+  | "proposal"
+  | "approved"
+  | "target"
+  | "prediction"
+  | "quotation"
+  | "reported"
+  | "unknown";
+
+export type ClaimEpistemicCertainty =
+  | "asserted"
+  | "alleged"
+  | "uncertain"
+  | "disputed"
+  | "hypothetical"
+  | "unknown";
+
+export type ClaimAssertionType =
+  | "event"
+  | "quotation"
+  | "causal"
+  | "correlational"
+  | "opinion"
+  | "prediction"
+  | "unknown";
+
+export type EvidenceNature =
+  | "primary_record"
+  | "direct_statement"
+  | "original_research"
+  | "institutional_data"
+  | "independent_reporting"
+  | "fact_check"
+  | "commentary"
+  | "unknown";
+
+export type EvidenceIndependence = "independent" | "syndicated" | "unknown";
+
+export type EvidenceExcerptBasis =
+  | "fact_check_api_metadata"
+  | "ai_search_summary"
+  | "url_only";
 
 export type EvidenceTargetAspect =
   | "text_claim"
   | "image_authenticity"
   | "event_occurrence"
-  | "official_legal_status";
+  | "status_or_stage"
+  | "plan_or_target"
+  | "implementation_or_outcome";
 
 export type TemporalVerificationStatus =
   | "current_match"
@@ -35,10 +84,13 @@ export type TemporalVerificationStatus =
 
 export type AtomicClaimCategory =
   | "main_event"
-  | "person_and_role"
+  | "subject_identity"
   | "time_and_location"
-  | "formal_legal_status"
-  | "caption_context";
+  | "status_or_stage"
+  | "quantity_or_measurement"
+  | "caption_context"
+  | "outcome_or_result"
+  | "modality_or_condition";
 
 export type OcrRegionRole =
   | "headline"
@@ -93,6 +145,18 @@ export interface NormalizedFactualClaim {
   sourceRole: "headline" | "caption" | "combined";
   semanticNote?: string | null;
   requiredForFullConfirmation?: boolean;
+  namedEntities?: string[];
+  numericValues?: Array<{
+    value: string;
+    unit: string | null;
+    context: string;
+  }>;
+  geographicContext?: string[];
+  polarity?: "affirmed" | "negated";
+  modality?: ClaimModality;
+  epistemicCertainty?: ClaimEpistemicCertainty;
+  assertionType?: ClaimAssertionType;
+  requiredConditions?: string[];
 }
 
 export interface AtomicClaimItem {
@@ -102,6 +166,8 @@ export interface AtomicClaimItem {
   proposition: string;
   requiredForFullConfirmation?: boolean;
 }
+
+export type EvidenceDateBasis = "verified" | "reported" | "inferred" | "unknown";
 
 export interface AtomicClaimAssessment extends AtomicClaimItem {
   status: ClaimVerdict;
@@ -183,12 +249,19 @@ export interface EvidenceSource {
   domain: string;
   publisher: string;
   publishedAt: string | null;
+  publicationDateBasis?: EvidenceDateBasis;
+  inferredPublishedAt?: string | null;
   snippet: string;
   relation: EvidenceRelation;
   targetAspect?: EvidenceTargetAspect;
   temporalStatus?: TemporalVerificationStatus;
   sourceEventDate?: string | null;
+  sourceEventDateBasis?: Exclude<EvidenceDateBasis, "verified">;
+  evidenceNature?: EvidenceNature;
+  independence?: EvidenceIndependence;
+  excerptBasis?: EvidenceExcerptBasis;
   evaluatedAtomicClaimId?: string | null;
+  evaluatedAtomicClaimIds?: string[];
   claimEvaluated: string;
   sourceTier: SourceTier;
   origin: "google_fact_check" | "openai_web_search" | "demo_fixture";
@@ -239,6 +312,7 @@ export interface VerdictAssessment {
   evidenceMetrics: {
     totalRetrieved: number;
     relevantSources: number;
+    insufficientCount?: number;
     supportingCount: number;
     contradictingCount: number;
     partialContextCount: number;
@@ -270,6 +344,7 @@ export interface InvestigationReport {
   supportingEvidence: EvidenceSource[];
   contradictingEvidence: EvidenceSource[];
   partialContextEvidence: EvidenceSource[];
+  insufficientEvidence?: EvidenceSource[];
   publicOriginTrace: PublicOriginTrace;
   evidenceSources: EvidenceSource[];
   pipelineSteps: PipelineStepState[];

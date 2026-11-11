@@ -135,6 +135,8 @@ export function EvidenceRelationBadge({
       return <Badge variant="threat">Contradicting (Membantah)</Badge>;
     case "partial_context":
       return <Badge variant="warning">Partial Context</Badge>;
+    case "insufficient":
+      return <Badge variant="secondary">Insufficient Evidence (Bukti Belum Cukup)</Badge>;
     case "irrelevant":
     default:
       return <Badge variant="secondary">Irrelevant</Badge>;

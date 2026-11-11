@@ -13,8 +13,10 @@ import {
   filterClaimsForDebunkingStance,
   hasReadableFactualText,
   normalizeOcrRegions,
+  normalizeVisibleAccountHandle,
   normalizeVisiblePostUrl,
   sanitizeDateIndicator,
+  sanitizeClarificationText,
   sanitizeOptionalText,
   sanitizeUntrustedText,
   ScreenshotOcrZodSchema,
@@ -78,6 +80,14 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
             proposition: "Klaim faktual contoh",
             eventDate: null,
             legalOrAdministrativeStatus: null,
+            namedEntities: [],
+            numericValues: [],
+            geographicContext: [],
+            polarity: "affirmed",
+            modality: "assertion",
+            epistemicCertainty: "asserted",
+            assertionType: "event",
+            requiredConditions: [],
             sourceRole: "headline",
             semanticNote: null,
             requiredForFullConfirmation: true,
@@ -213,7 +223,7 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
     expect(textResult.extractedCaption).toBe("Info layanan perbankan resmi.");
   });
 
-  it("builds deterministic fallback normalized & atomic claims separating formal status without media_authenticity", () => {
+  it("builds generic fallback claims without inferring an unobserved status stage", () => {
     const atomic = buildFallbackAtomicClaims({
       primaryClaim:
         "Gibran resmi mengajukan pengunduran diri sebagai Wakil Presiden pada 10 November 2026",
@@ -221,7 +231,7 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
     });
 
     expect(atomic.some((a) => a.category === "main_event")).toBe(true);
-    expect(atomic.some((a) => a.category === "formal_legal_status")).toBe(true);
+    expect(atomic.some((a) => a.category === "status_or_stage")).toBe(false);
     expect(atomic.some((a) => a.category === "time_and_location")).toBe(true);
     expect(
       atomic.every((a) => (a.category as string) !== "media_authenticity")
@@ -412,7 +422,7 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
         },
         {
           id: "ac2",
-          category: "formal_legal_status",
+          category: "status_or_stage",
           label: "Konteks Klarifikasi Resmi",
           proposition:
             "Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
@@ -427,7 +437,7 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
         },
         {
           id: "ac4",
-          category: "formal_legal_status",
+          category: "status_or_stage",
           label: "Status Hukum/Administratif yang Dikoreksi Caption",
           proposition:
             "Masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
@@ -440,5 +450,234 @@ describe("two-stage text-first claim-extractor schema & prompt injection guards"
     expect(filtered.normalizedClaims[0].id).toBe("NC-01");
     expect(filtered.atomicClaims).toHaveLength(1);
     expect(filtered.atomicClaims[0].id).toBe("ac1");
+  });
+
+  it("never fabricates today's upload date when OCR text uses 'hari ini' without a calendar publication date", async () => {
+    const undatedRelativeOcr: ScreenshotOcrResult = {
+      extractedHeadline: "Banjir besar melanda pusat kota hari ini",
+      graphicOverlayTexts: [],
+      extractedCaption: null,
+      captionTruncated: false,
+      publisherOrAccountName: "Kabar Kota",
+      visibleAccountHandle: "@kabarkota",
+      visiblePostUrl: null,
+      visiblePublicationDate: null,
+      clarificationOrDebunkText: null,
+      rawTranscript: "Banjir besar melanda pusat kota hari ini",
+      language: "id",
+      platform: "Instagram",
+      ocrRegions: [],
+    };
+
+    const parseSpy = vi.fn().mockResolvedValue({
+      output_parsed: {
+        primaryClaim: "Banjir besar melanda pusat kota hari ini",
+        secondaryClaims: [],
+        normalizedClaims: [
+          {
+            id: "NC-01",
+            subject: "Banjir besar",
+            predicateAction: "melanda",
+            objectTarget: "pusat kota",
+            proposition: "Banjir besar melanda pusat kota hari ini",
+            eventDate: "hari ini",
+            legalOrAdministrativeStatus: null,
+            sourceRole: "headline",
+            semanticNote: null,
+            requiredForFullConfirmation: true,
+          },
+        ],
+        atomicClaims: [
+          {
+            id: "AC-01",
+            category: "main_event",
+            label: "Peristiwa Utama",
+            proposition: "Banjir besar melanda pusat kota hari ini",
+            requiredForFullConfirmation: true,
+          },
+        ],
+        topicCategory: "Bencana & Peristiwa",
+        // Even if Stage B LLM tries to collapse "hari ini" into an upload calendar date:
+        claimDateMentioned: "2026-11-11",
+        postStance: "asserting_claim",
+        postStanceSummary: "Unggahan menyebut banjir hari ini.",
+        containsCheckableClaim: true,
+        searchQueries: ["banjir besar pusat kota"],
+      },
+    });
+
+    const fakeClient = {
+      responses: { parse: parseSpy },
+    } as unknown as OpenAI;
+
+    const extracted = await extractClaimsFromOcrText({
+      client: fakeClient,
+      model: "gpt-5.4-mini",
+      ocr: undatedRelativeOcr,
+    });
+
+    expect(extracted.claimDateMentioned).toBe("hari ini");
+    expect(extracted.visibleTimestamp).toBeNull();
+  });
+
+  it("keeps raw OCR auditable while excluding handles, hashtags, and decorative media metadata from claim text", () => {
+    const rawTranscript =
+      "@vereditum • #hoaks Program satu orang satu rekening ditargetkan berjalan dua bulan lagi VID_20261105 2300 views";
+    const ocr: ScreenshotOcrResult = {
+      extractedHeadline: null,
+      graphicOverlayTexts: [],
+      extractedCaption: rawTranscript,
+      captionTruncated: false,
+      publisherOrAccountName: "Vereditum",
+      visibleAccountHandle: "#vereditum",
+      visiblePostUrl: null,
+      visiblePublicationDate: null,
+      clarificationOrDebunkText: "#hoaks #cekfakta",
+      rawTranscript,
+      language: "id",
+      platform: "Instagram",
+      ocrRegions: [],
+    };
+
+    const transcript = assembleVisibleTranscript(ocr);
+    expect(normalizeVisibleAccountHandle("@vereditum")).toBe("@vereditum");
+    expect(normalizeVisibleAccountHandle("#vereditum")).toBeNull();
+    expect(normalizeVisibleAccountHandle("@account with spaces")).toBeNull();
+    expect(transcript).toContain("Program satu orang satu rekening");
+    expect(transcript).not.toContain("@vereditum");
+    expect(transcript).not.toContain("#hoaks");
+    expect(transcript).not.toContain("VID_20261105");
+    expect(transcript).not.toContain("2300 views");
+    expect(ocr.rawTranscript).toBe(rawTranscript);
+    expect(sanitizeClarificationText("#hoaks #cekfakta")).toBeNull();
+    expect(sanitizeClarificationText("Program akan berjalan bulan depan")).toBeNull();
+    expect(sanitizeClarificationText("HOAKS / TIDAK BENAR")).toContain("HOAKS");
+  });
+
+  it("does not interpret generic hashtags as a debunking clarification", () => {
+    const retained = filterClaimsForDebunkingStance({
+      postStance: "debunking_claim",
+      primaryClaim: "Program kartu digital diluncurkan pemerintah",
+      extractedCaption: "#hoaks #cekfakta",
+      clarificationOrDebunkText: "#hoaks",
+      normalizedClaims: [
+        {
+          id: "NC-01",
+          subject: "Program kartu digital",
+          predicateAction: "diluncurkan",
+          objectTarget: "pemerintah",
+          proposition: "Program kartu digital diluncurkan pemerintah",
+          eventDate: null,
+          legalOrAdministrativeStatus: null,
+          sourceRole: "caption",
+        },
+      ],
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Klaim program",
+          proposition: "Program kartu digital diluncurkan pemerintah",
+        },
+      ],
+    });
+
+    expect(retained.normalizedClaims).toHaveLength(1);
+    expect(retained.atomicClaims).toHaveLength(1);
+  });
+
+  it("adds a separate outcome check for future-oriented claims", async () => {
+    const ocr: ScreenshotOcrResult = {
+      extractedHeadline:
+        "Program Satu Orang Satu Rekening ditargetkan terealisasi dua bulan lagi",
+      graphicOverlayTexts: [],
+      extractedCaption: "Saldo awal yang direncanakan Rp50.000.",
+      captionTruncated: false,
+      publisherOrAccountName: "Media",
+      visibleAccountHandle: null,
+      visiblePostUrl: null,
+      visiblePublicationDate: null,
+      clarificationOrDebunkText: null,
+      rawTranscript:
+        "Program Satu Orang Satu Rekening ditargetkan terealisasi dua bulan lagi. Saldo awal Rp50.000.",
+      language: "id",
+      platform: "Instagram",
+      ocrRegions: [],
+    };
+    const parseSpy = vi.fn().mockResolvedValue({
+      output_parsed: {
+        primaryClaim:
+          "Pemerintah menargetkan Program Satu Orang Satu Rekening terealisasi dua bulan lagi dengan saldo awal Rp50.000",
+        secondaryClaims: [],
+        normalizedClaims: [
+          {
+            id: "NC-01",
+            subject: "Pemerintah",
+            predicateAction: "menargetkan realisasi",
+            objectTarget: "program",
+            proposition:
+              "Pemerintah menargetkan program terealisasi dua bulan lagi",
+            eventDate: null,
+            legalOrAdministrativeStatus: null,
+            namedEntities: [],
+            numericValues: [],
+            geographicContext: [],
+            polarity: "affirmed",
+            modality: "target",
+            epistemicCertainty: "asserted",
+            assertionType: "prediction",
+            requiredConditions: [],
+            sourceRole: "headline",
+            semanticNote: null,
+            requiredForFullConfirmation: true,
+          },
+        ],
+        atomicClaims: [
+          {
+            id: "AC-01",
+            category: "main_event",
+            label: "Pengumuman rencana",
+            proposition: "Pemerintah mengumumkan rencana program",
+            requiredForFullConfirmation: true,
+          },
+          {
+            id: "AC-02",
+            category: "time_and_location",
+            label: "Target waktu",
+            proposition: "Program ditargetkan terealisasi dua bulan lagi",
+            requiredForFullConfirmation: true,
+          },
+          {
+            id: "AC-03",
+            category: "quantity_or_measurement",
+            label: "Saldo awal",
+            proposition: "Saldo awal direncanakan Rp50.000",
+            requiredForFullConfirmation: true,
+          },
+        ],
+        topicCategory: "Kebijakan Publik",
+        claimDateMentioned: "dua bulan lagi",
+        postStance: "asserting_claim",
+        postStanceSummary: "Unggahan menyampaikan rencana program.",
+        containsCheckableClaim: true,
+        searchQueries: ["Program Satu Orang Satu Rekening"],
+      },
+    });
+    const fakeClient = {
+      responses: { parse: parseSpy },
+    } as unknown as OpenAI;
+
+    const result = await extractClaimsFromOcrText({
+      client: fakeClient,
+      model: "gpt-5.4-mini",
+      ocr,
+    });
+
+    const implementationCheck = result.atomicClaims?.find(
+      (claim) => claim.category === "outcome_or_result"
+    );
+    expect(implementationCheck).toBeDefined();
+    expect(implementationCheck?.requiredForFullConfirmation).toBe(false);
+    expect(implementationCheck?.label).toContain("pemeriksaan terpisah");
   });
 });

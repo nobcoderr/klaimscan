@@ -59,14 +59,18 @@ const MULTI_LEVEL_SUFFIXES = [
 ];
 
 function weightForSource(source: EvidenceSource): number {
-  switch (source.sourceTier) {
-    case "official_government":
-      return 3;
-    case "fact_checker":
+  switch (source.evidenceNature) {
+    case "primary_record":
+    case "original_research":
+    case "institutional_data":
       return 2.5;
-    case "credible_media":
+    case "fact_check":
+    case "independent_reporting":
+    case "direct_statement":
       return 1.5;
-    case "public_source":
+    case "commentary":
+      return 0.75;
+    case "unknown":
     default:
       return 1;
   }
@@ -128,23 +132,44 @@ export function deduplicateByPublisher(
   return Array.from(byPublisher.values());
 }
 
-function hasOfficialOrFactCheck(sources: EvidenceSource[]): boolean {
+function hasSubstantiveEvidence(sources: EvidenceSource[]): boolean {
   return sources.some(
-    (s) =>
-      s.sourceTier === "official_government" || s.sourceTier === "fact_checker"
+    (source) =>
+      source.evidenceNature !== "unknown" &&
+      source.evidenceNature !== "commentary" &&
+      source.excerptBasis !== "url_only" &&
+      source.excerptBasis !== "fact_check_api_metadata"
   );
 }
 
-function hasNonPublicSource(sources: EvidenceSource[]): boolean {
-  return sources.some((s) => s.sourceTier !== "public_source");
-}
-
-function countCredibleMedia(sources: EvidenceSource[]): number {
-  return sources.filter((s) => s.sourceTier === "credible_media").length;
-}
-
 function hasIndependentCorroboration(sources: EvidenceSource[]): boolean {
-  return hasOfficialOrFactCheck(sources) || countCredibleMedia(sources) >= 2;
+  const nonSyndicated = deduplicateByPublisher(
+    sources.filter((source) => source.independence !== "syndicated")
+  );
+  const decisivePrimaryEvidence = nonSyndicated.some(
+    (source) =>
+      source.excerptBasis !== "url_only" &&
+      source.excerptBasis !== "fact_check_api_metadata" &&
+      (source.evidenceNature === "primary_record" ||
+        source.evidenceNature === "original_research" ||
+        source.evidenceNature === "institutional_data" ||
+        (source.relation === "supporting" &&
+          source.evidenceNature === "direct_statement" &&
+          (source.targetAspect === "event_occurrence" ||
+            source.targetAspect === "status_or_stage" ||
+            source.targetAspect === "plan_or_target" ||
+            source.targetAspect === "implementation_or_outcome")))
+  );
+  const independentlyCorroborating = nonSyndicated.filter(
+    (source) =>
+      source.independence === "independent" &&
+      source.sourceTier !== "public_source" &&
+      source.evidenceNature !== "commentary" &&
+      source.evidenceNature !== "unknown" &&
+      source.excerptBasis !== "url_only" &&
+      source.excerptBasis !== "fact_check_api_metadata"
+  );
+  return decisivePrimaryEvidence || independentlyCorroborating.length >= 2;
 }
 
 function resolveVerdictFromBucket(params: {
@@ -207,7 +232,7 @@ function resolveVerdictFromBucket(params: {
     status = "FALSE";
   } else if (
     partialScore > 0 &&
-    hasNonPublicSource(partialPubs) &&
+    hasSubstantiveEvidence(partialPubs) &&
     partialScore >= supportScore &&
     partialScore >= contradictScore
   ) {
@@ -215,15 +240,15 @@ function resolveVerdictFromBucket(params: {
   } else if (
     contradictScore > 0 &&
     supportScore > 0 &&
-    hasNonPublicSource(supportPubs) &&
-    hasNonPublicSource(contradictPubs)
+    hasSubstantiveEvidence(supportPubs) &&
+    hasSubstantiveEvidence(contradictPubs)
   ) {
     status = "MISLEADING";
   } else if (
     supportScore > 0 &&
     (contradictScore === 0 ||
-      (hasOfficialOrFactCheck(supportPubs) &&
-        !hasNonPublicSource(contradictPubs) &&
+      (hasSubstantiveEvidence(supportPubs) &&
+        !hasSubstantiveEvidence(contradictPubs) &&
         supportScore >= contradictScore * 2)) &&
     hasIndependentCorroboration(supportPubs)
   ) {
@@ -243,94 +268,113 @@ function resolveVerdictFromBucket(params: {
 
 function selectSourcesForAtomicClaim(
   item: AtomicClaimItem,
-  relevantSources: EvidenceSource[]
+  relevantSources: EvidenceSource[],
+  strictAtomicAlignment: boolean
 ): EvidenceSource[] {
   const textScoped = relevantSources.filter(
     (s) => s.targetAspect !== "image_authenticity"
   );
 
-  if (item.category === "formal_legal_status") {
-    const explicitLegal = textScoped.filter(
-      (s) =>
-        s.evaluatedAtomicClaimId === item.id ||
-        s.targetAspect === "official_legal_status"
-    );
-    if (explicitLegal.length > 0) {
-      return explicitLegal;
-    }
-
-    // Fallback when sources didn't tag official_legal_status explicitly:
-    // ONLY accept sources confirming a finalized formal/legal status (never preliminary intention reports!)
-    return textScoped.filter((s) => {
-      const corpus =
-        `${s.title} ${s.snippet} ${s.claimEvaluated} ${s.rationale}`.toLowerCase();
-      const mentionsFormalStep =
-        /(ditetapkan\s+sebagai\s+tersangka|penetapan\s+tersangka|status\s+tersangka|resmi\s+menjadi\s+tersangka|surat\s+pengunduran\s+diri\s+telah\s+diserahkan|disahkan|diterbitkan)/.test(
-          corpus
-        );
-      const preliminaryIntentionOnly =
-        /\b(niat|berniat|keinginan|menghendaki|wacana|rencana|belum\s+mengajukan|belum\s+resmi|belum\s+menyerahkan)\b/.test(
-          corpus
-        );
-      return mentionsFormalStep && !preliminaryIntentionOnly;
-    });
-  }
-
   const explicitlyAssigned = textScoped.filter(
-    (s) => s.evaluatedAtomicClaimId === item.id
+    (s) =>
+      s.evaluatedAtomicClaimId === item.id ||
+      s.evaluatedAtomicClaimIds?.includes(item.id)
   );
-
-  if (item.category === "main_event" || item.category === "caption_context") {
-    const eventPool = textScoped.filter(
-      (s) =>
-        s.evaluatedAtomicClaimId === item.id ||
-        !s.evaluatedAtomicClaimId ||
-        s.targetAspect === "event_occurrence" ||
-        s.targetAspect === "text_claim" ||
-        (s.targetAspect === "official_legal_status" &&
-          s.relation === "supporting")
-    );
-    return Array.from(new Set(eventPool));
-  }
 
   if (explicitlyAssigned.length > 0) {
     return explicitlyAssigned;
   }
-
-  // Fallback for person_and_role / time_and_location when sources weren't explicitly tagged with this ID
-  return textScoped.filter(
-    (s) =>
-      !s.evaluatedAtomicClaimId ||
-      s.targetAspect === "event_occurrence" ||
-      s.targetAspect === "text_claim"
-  );
+  return strictAtomicAlignment ? [] : textScoped;
 }
 
 function formatAtomicStatusLabel(
   item: AtomicClaimItem,
   status: ClaimVerdict
 ): string {
-  const lower = item.proposition.toLowerCase();
-  if (item.category === "formal_legal_status") {
-    if (status === "TRUE") return "OFFICIAL STATUS CONFIRMED";
-    if (status === "FALSE") return "OFFICIAL STATUS FALSE";
-    return "FORMAL STATUS UNVERIFIED";
+  const suffix: Record<ClaimVerdict, string> = {
+    TRUE: "TERKONFIRMASI",
+    FALSE: "DIBANTAH",
+    MISLEADING: "KONTEKS MENYESATKAN / PARSIAL",
+    OUTDATED: "KEDALUWARSA",
+    UNVERIFIED: "BELUM TERVERIFIKASI",
+  };
+  return `${item.label.toUpperCase()}: ${suffix[status]}`;
+}
+
+function aggregateRequiredAtomicClaims(
+  assessments: AtomicClaimAssessment[],
+  fallback: ClaimVerdict
+): { status: ClaimVerdict; explanation: string } {
+  const required = assessments.filter(
+    (assessment) => assessment.requiredForFullConfirmation !== false
+  );
+  if (required.length === 0) {
+    return {
+      status: fallback,
+      explanation: "Tidak ada proposisi wajib terpisah; verdict mengikuti bukti klaim utama.",
+    };
   }
-  if (item.category === "caption_context") {
-    if (status === "TRUE") return "CAPTION CONTEXT CONFIRMED";
-    if (status === "FALSE") return "CAPTION CONTEXT FALSE";
-    return "CAPTION CONTEXT UNVERIFIED";
+
+  const confirmed = required.filter((assessment) => assessment.status === "TRUE");
+  const contradicted = required.filter((assessment) => assessment.status === "FALSE");
+  const misleading = required.filter(
+    (assessment) => assessment.status === "MISLEADING"
+  );
+  const outdated = required.filter((assessment) => assessment.status === "OUTDATED");
+  const unresolved = required.filter(
+    (assessment) => assessment.status === "UNVERIFIED"
+  );
+
+  if (confirmed.length > 0 && contradicted.length > 0) {
+    return {
+      status: "MISLEADING",
+      explanation: `Sebagian proposisi wajib terkonfirmasi (${confirmed.map((item) => item.label).join(", ")}), sementara proposisi lain dibantah (${contradicted.map((item) => item.label).join(", ")}).`,
+    };
   }
-  if (item.category === "main_event" && /(niat|intention|keinginan|permohonan)/.test(lower)) {
-    if (status === "TRUE") return "INTENTION CONFIRMED";
-    if (status === "FALSE") return "INTENTION FALSE";
-    return "INTENTION UNVERIFIED";
+  if (
+    (confirmed.length > 0 || contradicted.length > 0) &&
+    outdated.length > 0
+  ) {
+    return {
+      status: "MISLEADING",
+      explanation: `Proposisi wajib memiliki status temporal atau faktual yang berbeda (${[...confirmed, ...contradicted, ...outdated].map((item) => item.label).join(", ")}); hasilnya tidak diringkas sebagai konfirmasi tunggal.`,
+    };
   }
-  if (status === "TRUE") return "EVENT CONFIRMED";
-  if (status === "FALSE") return "EVENT FALSE";
-  if (status === "MISLEADING") return "EVENT MISLEADING";
-  if (status === "OUTDATED") return "EVENT OUTDATED";
-  return "EVENT UNVERIFIED";
+  if (contradicted.length === required.length) {
+    return {
+      status: "FALSE",
+      explanation: `Seluruh proposisi wajib yang diuji dibantah oleh bukti yang selaras (${contradicted.map((item) => item.label).join(", ")}).`,
+    };
+  }
+  if (misleading.length > 0) {
+    return {
+      status: "MISLEADING",
+      explanation: `Bukti mendukung sebagian konteks tetapi tidak sepenuhnya mendukung proposisi wajib (${misleading.map((item) => item.label).join(", ")}).`,
+    };
+  }
+  if (outdated.length > 0 && confirmed.length === 0) {
+    return {
+      status: "OUTDATED",
+      explanation: `Bukti yang sesuai menunjukkan konteks peristiwa pada proposisi wajib telah kedaluwarsa (${outdated.map((item) => item.label).join(", ")}).`,
+    };
+  }
+  if (unresolved.length > 0) {
+    return {
+      status: "UNVERIFIED",
+      explanation: `Aspek wajib belum semuanya dapat diverifikasi (${unresolved.map((item) => item.label).join(", ")}); bagian yang telah terbukti tidak digunakan untuk mengasumsikan sisanya.`,
+    };
+  }
+  if (confirmed.length === required.length) {
+    return {
+      status: "TRUE",
+      explanation: `Seluruh proposisi wajib terkonfirmasi secara terpisah (${confirmed.map((item) => item.label).join(", ")}).`,
+    };
+  }
+
+  return {
+    status: fallback,
+    explanation: "Bukti pada proposisi atomik belum cukup untuk mengubah verdict agregat.",
+  };
 }
 
 export function computeVerdictFromEvidence(params: {
@@ -341,6 +385,7 @@ export function computeVerdictFromEvidence(params: {
   atomicClaims?: AtomicClaimItem[];
   outdatedSignalDetected?: boolean;
   containsCheckableClaim?: boolean;
+  unresolvedTimeContext?: boolean;
 }): VerdictAssessment {
   const {
     primaryClaim,
@@ -350,6 +395,7 @@ export function computeVerdictFromEvidence(params: {
     atomicClaims = [],
     outdatedSignalDetected = false,
     containsCheckableClaim = true,
+    unresolvedTimeContext = false,
   } = params;
 
   const relevant = sources.filter((s) => s.relation !== "irrelevant");
@@ -372,20 +418,42 @@ export function computeVerdictFromEvidence(params: {
   const partialContext = primaryScopedRelevant.filter(
     (s) => s.relation === "partial_context"
   );
+  const insufficient = primaryScopedRelevant.filter(
+    (s) => s.relation === "insufficient"
+  );
 
   // Evaluate decomposed text atomic claims independently when provided
   const atomicAssessments: AtomicClaimAssessment[] = atomicClaims.map((item) => {
-    const scoped = selectSourcesForAtomicClaim(item, primaryScopedRelevant);
+    const scoped = selectSourcesForAtomicClaim(
+      item,
+      primaryScopedRelevant,
+      atomicClaims.length > 1 ||
+        primaryScopedRelevant.some(
+          (source) =>
+            Boolean(source.evaluatedAtomicClaimId) ||
+            (source.evaluatedAtomicClaimIds?.length ?? 0) > 0
+        )
+    );
     const evaluated = resolveVerdictFromBucket({
       relevantSources: scoped,
       outdatedSignalDetected,
     });
 
-    const status = containsCheckableClaim ? evaluated.status : "UNVERIFIED";
+    const temporalUnconfirmedForAtom =
+      unresolvedTimeContext &&
+      item.category === "time_and_location" &&
+      evaluated.status === "TRUE";
+    const status =
+      !containsCheckableClaim || temporalUnconfirmedForAtom
+        ? "UNVERIFIED"
+        : evaluated.status;
     const statusLabel = formatAtomicStatusLabel(item, status);
     let rationale = "Belum terdapat bukti terindeks yang cukup untuk aspek ini.";
 
-    if (status === "TRUE") {
+    if (temporalUnconfirmedForAtom) {
+      rationale =
+        "Tanggal publikasi asli postingan tidak diketahui sehingga konteks waktu relatif belum dapat dipastikan.";
+    } else if (status === "TRUE") {
       rationale = `Terkonfirmasi oleh ${evaluated.supportPubsCount} penerbit independen.`;
     } else if (status === "FALSE") {
       rationale = `Dibantah oleh ${evaluated.contradictPubsCount} penerbit independen pada aspek tekstual ini.`;
@@ -412,57 +480,38 @@ export function computeVerdictFromEvidence(params: {
   let claimVerdict: ClaimVerdict = "UNVERIFIED";
   let explanation = "";
 
-  const confirmedMainEvent = atomicAssessments.find(
-    (a) => a.category === "main_event" && a.status === "TRUE"
+  const aggregate = aggregateRequiredAtomicClaims(
+    atomicAssessments,
+    baseResolution.status
   );
-  const unresolvedRequiredFormal = atomicAssessments.find(
-    (a) =>
-      a.requiredForFullConfirmation !== false &&
-      a.category === "formal_legal_status" &&
-      (a.status === "UNVERIFIED" || a.status === "MISLEADING")
+  const optionalUnresolved = atomicAssessments.filter(
+    (assessment) =>
+      assessment.requiredForFullConfirmation === false &&
+      assessment.status !== "TRUE"
   );
-  const rejectedRequiredFormal = atomicAssessments.find(
-    (a) =>
-      a.requiredForFullConfirmation !== false &&
-      a.category === "formal_legal_status" &&
-      a.status === "FALSE"
-  );
-
   if (!containsCheckableClaim) {
     claimVerdict = "UNVERIFIED";
     explanation =
-      "Screenshot tidak memuat klaim faktual berbasis teks yang cukup jelas untuk diuji silang dengan sumber resmi.";
-  } else if (primaryScopedRelevant.length === 0 && !confirmedMainEvent) {
+      "Screenshot tidak memuat klaim faktual berbasis teks yang cukup jelas untuk diuji silang.";
+  } else if (primaryScopedRelevant.length === 0) {
     claimVerdict = "UNVERIFIED";
     explanation =
-      "Tidak ditemukan sumber resmi, artikel pemeriksa fakta, atau bukti teks relevan yang memadai (setelah memisahkan arsip kedaluwarsa atau klarifikasi foto sampul) untuk memastikan kebenaran klaim.";
-  } else if (confirmedMainEvent && rejectedRequiredFormal) {
-    claimVerdict = "MISLEADING";
-    explanation = `Klaim atomik peristiwa/niat telah terkonfirmasi (${confirmedMainEvent.proposition}), namun aspek formal/hukum resmi (${rejectedRequiredFormal.proposition}) dibantah oleh bukti resmi sehingga klaim utuh bersifat sebagian benar / menyesatkan.`;
-  } else if (
-    confirmedMainEvent &&
-    unresolvedRequiredFormal &&
-    baseResolution.status !== "FALSE"
-  ) {
-    // Safe qualified assessment when primary event/intention is confirmed but formal legal step lacks verification
-    claimVerdict = "UNVERIFIED";
-    explanation = `Klaim atomik peristiwa/niat telah terkonfirmasi (${confirmedMainEvent.proposition}), namun aspek formal/hukum (${unresolvedRequiredFormal.proposition}) belum terbukti oleh dokumen atau konfirmasi resmi. Status keseluruhan dijaga konservatif agar tidak melebih-lebihkan kepastian.`;
+      "Tidak ada sumber yang lolos penyelarasan relevansi untuk proposisi yang diuji.";
   } else {
-    claimVerdict = baseResolution.status;
+    claimVerdict = aggregate.status;
+    explanation =
+      optionalUnresolved.length > 0 && aggregate.status === "TRUE"
+        ? `${aggregate.explanation} Aspek tambahan yang tidak menjadi inti klaim masih belum terverifikasi: ${optionalUnresolved.map((assessment) => assessment.label).join(", ")}.`
+        : aggregate.explanation;
+  }
 
-    if (claimVerdict === "OUTDATED") {
+  if (unresolvedTimeContext && containsCheckableClaim) {
+    if (claimVerdict === "TRUE") {
+      claimVerdict = "UNVERIFIED";
       explanation =
-        "Bukti terverifikasi menunjukkan informasi atau klaim teks berasal dari kejadian lama yang diunggah ulang seolah baru terjadi.";
-    } else if (claimVerdict === "FALSE") {
-      explanation = `Ditemukan ${baseResolution.contradictPubsCount} penerbit independen (${baseResolution.contradictingTotalCount} rujukan) yang membantah klaim teks "${primaryClaim}", termasuk klarifikasi resmi, pemeriksa fakta terakreditasi, atau koroborasi multi-media.`;
-    } else if (claimVerdict === "MISLEADING") {
-      explanation =
-        "Bukti kredibel menunjukkan klaim teks hanya benar sebagian, memerlukan konteks tambahan, atau memiliki sumber kredibel yang saling bertentangan.";
-    } else if (claimVerdict === "TRUE") {
-      explanation = `Klaim teks "${primaryClaim}" terkonfirmasi oleh ${baseResolution.supportPubsCount} penerbit independen otoritatif/kredibel tanpa bantahan terhadap peristiwa utamanya.`;
+        "Klaim memuat keterangan waktu relatif ('hari ini'/'kemarin'/dll.), namun tanggal kalender publikasi asli postingan tidak diketahui atau hanya relatif sehingga tidak disamakan otomatis dengan tanggal unggah; konteks waktunya belum dapat dipastikan dan status dijaga tetap UNVERIFIED.";
     } else {
-      explanation =
-        "Bukti relevan yang ditemukan belum memenuhi ambang koroborasi independen untuk menyimpulkan klaim teks secara utuh; verdict dijaga tetap UNVERIFIED.";
+      explanation = `${explanation} Catatan konteks waktu: Tanggal publikasi asli postingan tidak diketahui atau hanya relatif sehingga konteks waktu relatif pada klaim belum dapat dipastikan.`;
     }
   }
 
@@ -491,6 +540,7 @@ export function computeVerdictFromEvidence(params: {
     evidenceMetrics: {
       totalRetrieved: sources.length,
       relevantSources: relevant.length,
+      insufficientCount: insufficient.length,
       supportingCount: supporting.length,
       contradictingCount: contradicting.length,
       partialContextCount: partialContext.length,

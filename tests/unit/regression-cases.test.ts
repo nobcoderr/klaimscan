@@ -115,7 +115,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
             },
             {
               id: "AC-02",
-              category: "formal_legal_status",
+              category: "status_or_stage",
               label: "Status Hukum Resmi",
               proposition:
                 "Polri menetapkan Listyo Sigit Prabowo sebagai tersangka",
@@ -342,7 +342,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
             },
             {
               id: "AC-02",
-              category: "formal_legal_status",
+              category: "status_or_stage",
               label: "Pengajuan Resmi / Status Jabatan",
               proposition:
                 "Gibran telah menyerahkan surat pengunduran diri resmi sebagai Wapres",
@@ -390,7 +390,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
       },
       {
         id: "AC-02",
-        category: "formal_legal_status",
+        category: "status_or_stage",
         label: "Pengajuan Resmi / Status Jabatan",
         proposition:
           "Gibran telah menyerahkan surat pengunduran diri resmi dan berhenti menjabat sebagai Wapres",
@@ -441,6 +441,8 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           sourceEventDate: "2026-11-10",
           targetAspect: "event_occurrence",
           evaluatedAtomicClaimId: "AC-01",
+          evidenceNature: "independent_reporting",
+          independence: "independent",
           relation: "supporting",
           claimEvaluated: atomicClaims[0].proposition,
           rationale: "CNN Indonesia mengonfirmasi Gibran menyampaikan niat mundur.",
@@ -454,6 +456,8 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           sourceEventDate: "2026-11-10",
           targetAspect: "event_occurrence",
           evaluatedAtomicClaimId: "AC-01",
+          evidenceNature: "independent_reporting",
+          independence: "independent",
           relation: "supporting",
           claimEvaluated: atomicClaims[0].proposition,
           rationale: "CNBC Indonesia menegaskan baru tahap niat, belum surat resmi.",
@@ -471,8 +475,16 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
       outdatedSignalDetected: compared.outdatedSignalDetected,
     });
 
-    expect(verdict.qualifiedStatusLabels).toContain("INTENTION CONFIRMED");
-    expect(verdict.qualifiedStatusLabels).toContain("FORMAL STATUS UNVERIFIED");
+    expect(
+      verdict.qualifiedStatusLabels?.some((label) =>
+        label.startsWith("NIAT / PERTEMUAN DISAMPAIKAN: TERKONFIRMASI")
+      )
+    ).toBe(true);
+    expect(
+      verdict.qualifiedStatusLabels?.some((label) =>
+        label.startsWith("PENGAJUAN RESMI / STATUS JABATAN: BELUM TERVERIFIKASI")
+      )
+    ).toBe(true);
     expect(verdict.claimVerdict).toBe("UNVERIFIED");
     expect(verdict.claimVerdict).not.toBe("FALSE");
   });
@@ -560,7 +572,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
       },
       {
         id: "AC-02",
-        category: "formal_legal_status",
+        category: "status_or_stage",
         label: "Status Hukum Resmi",
         proposition: "Bareskrim Polri menetapkan Listyo Sigit Prabowo sebagai tersangka",
         requiredForFullConfirmation: true,
@@ -621,8 +633,11 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           matchesTimeContext: true,
           temporalCompatibility: "current_match",
           sourceEventDate: "2026-11-03",
-          targetAspect: "official_legal_status",
+          targetAspect: "status_or_stage",
           evaluatedAtomicClaimId: "AC-02",
+          evaluatedAtomicClaimIds: ["AC-01", "AC-02"],
+          evidenceNature: "independent_reporting",
+          independence: "independent",
           relation: "supporting",
           claimEvaluated: listyoAtomic[1].proposition,
           rationale: "Detik mengonfirmasi.",
@@ -634,8 +649,11 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           matchesTimeContext: true,
           temporalCompatibility: "current_match",
           sourceEventDate: "2026-11-04",
-          targetAspect: "official_legal_status",
+          targetAspect: "status_or_stage",
           evaluatedAtomicClaimId: "AC-02",
+          evaluatedAtomicClaimIds: ["AC-01", "AC-02"],
+          evidenceNature: "direct_statement",
+          independence: "independent",
           relation: "supporting",
           claimEvaluated: listyoAtomic[1].proposition,
           rationale: "Bakom RI mengonfirmasi.",
@@ -672,10 +690,16 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
     });
 
     expect(listyoVerdict.claimVerdict).toBe("TRUE");
-    expect(listyoVerdict.qualifiedStatusLabels).toContain("EVENT CONFIRMED");
-    expect(listyoVerdict.qualifiedStatusLabels).toContain(
-      "OFFICIAL STATUS CONFIRMED"
-    );
+    expect(
+      listyoVerdict.qualifiedStatusLabels?.some((label) =>
+        label.startsWith("PERISTIWA UTAMA: TERKONFIRMASI")
+      )
+    ).toBe(true);
+    expect(
+      listyoVerdict.qualifiedStatusLabels?.some((label) =>
+        label.startsWith("STATUS HUKUM RESMI: TERKONFIRMASI")
+      )
+    ).toBe(true);
     expect(listyoVerdict.qualifiedStatusLabels).not.toContain(
       "VIRAL PHOTO FALSE"
     );
@@ -850,6 +874,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
           evaluatedAtomicClaimId: "AC-01",
           claimEvaluated: extracted.primaryClaim,
           sourceTier: "official_government",
+          evidenceNature: "primary_record",
           origin: "openai_web_search",
           rationale: "Sumber resmi Korlantas membantah klaim seumur hidup.",
         },

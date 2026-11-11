@@ -18,6 +18,8 @@ function makeSource(overrides: Partial<EvidenceSource>): EvidenceSource {
     relation: "contradicting",
     claimEvaluated: "SIM berlaku seumur hidup",
     sourceTier: "official_government",
+    evidenceNature: "independent_reporting",
+    independence: "independent",
     origin: "openai_web_search",
     rationale: "Sumber resmi.",
     ...overrides,
@@ -160,6 +162,187 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
     expect(twoIndependentMedia.claimVerdict).toBe("FALSE");
   });
 
+  it("does not treat one fact-check rating or known syndicated copies as sufficient corroboration", () => {
+    const singleFactCheck = computeVerdictFromEvidence({
+      primaryClaim: "Sebuah informasi dinyatakan salah oleh satu pemeriksa",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan klaim.",
+      sources: [
+        makeSource({
+          id: "SRC-FC",
+          url: "https://factcheck.example.org/review/1",
+          domain: "factcheck.example.org",
+          publisher: "Fact Check Example",
+          sourceTier: "fact_checker",
+          evidenceNature: "fact_check",
+          excerptBasis: "fact_check_api_metadata",
+          relation: "contradicting",
+        }),
+      ],
+    });
+    expect(singleFactCheck.claimVerdict).toBe("UNVERIFIED");
+
+    const urlOnlyPrimary = computeVerdictFromEvidence({
+      primaryClaim: "Sebuah peristiwa terjadi",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan klaim.",
+      sources: [
+        makeSource({
+          id: "SRC-URL",
+          evidenceNature: "primary_record",
+          excerptBasis: "url_only",
+          relation: "supporting",
+        }),
+      ],
+    });
+    expect(urlOnlyPrimary.claimVerdict).toBe("UNVERIFIED");
+
+    const syndicatedCopies = computeVerdictFromEvidence({
+      primaryClaim: "Peristiwa baru diklaim terjadi",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan klaim.",
+      sources: [
+        makeSource({
+          id: "SRC-A",
+          url: "https://news-a.example.org/story",
+          domain: "news-a.example.org",
+          publisher: "News A",
+          sourceTier: "credible_media",
+          evidenceNature: "independent_reporting",
+          independence: "syndicated",
+          relation: "contradicting",
+        }),
+        makeSource({
+          id: "SRC-B",
+          url: "https://news-b.example.net/story",
+          domain: "news-b.example.net",
+          publisher: "News B",
+          sourceTier: "credible_media",
+          evidenceNature: "independent_reporting",
+          independence: "syndicated",
+          relation: "contradicting",
+        }),
+      ],
+    });
+    expect(syndicatedCopies.claimVerdict).toBe("UNVERIFIED");
+  });
+
+  it("aggregates required propositions without relying on category-specific verdict rules", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim: "Dua bagian berbeda dari klaim majemuk",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan klaim.",
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Proposisi A",
+          proposition: "Proposisi A terjadi",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-02",
+          category: "caption_context",
+          label: "Proposisi B",
+          proposition: "Proposisi B terjadi",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      sources: [
+        makeSource({
+          id: "SRC-01",
+          relation: "supporting",
+          evidenceNature: "primary_record",
+          evaluatedAtomicClaimId: "AC-01",
+        }),
+        makeSource({
+          id: "SRC-02",
+          url: "https://news.example.net/2",
+          domain: "news.example.net",
+          relation: "contradicting",
+          evidenceNature: "primary_record",
+          evaluatedAtomicClaimId: "AC-02",
+        }),
+      ],
+    });
+    expect(verdict.claimVerdict).toBe("MISLEADING");
+  });
+
+  it("does not reuse unassigned evidence across multiple atomic propositions", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim: "Klaim gabungan dengan dua proposisi",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan klaim.",
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Proposisi utama",
+          proposition: "Peristiwa utama terjadi",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-02",
+          category: "quantity_or_measurement",
+          label: "Nilai kuantitatif",
+          proposition: "Nilai peristiwa adalah 25 unit",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      sources: [
+        makeSource({
+          id: "SRC-01",
+          relation: "supporting",
+          evidenceNature: "primary_record",
+        }),
+      ],
+    });
+
+    expect(verdict.claimVerdict).toBe("UNVERIFIED");
+    expect(
+      verdict.atomicAssessments?.every(
+        (assessment) => assessment.status === "UNVERIFIED"
+      )
+    ).toBe(true);
+  });
+
+  it("uses a direct quotation only for the statement-made proposition it supports", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim: "Pejabat mengatakan nilai ekonomi meningkat karena kebijakan",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan pernyataan dan isi faktual.",
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Pernyataan dibuat",
+          proposition: "Pejabat mengatakan nilai ekonomi meningkat",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-02",
+          category: "main_event",
+          label: "Isi pernyataan benar",
+          proposition: "Nilai ekonomi meningkat karena kebijakan",
+          requiredForFullConfirmation: true,
+        },
+      ],
+      sources: [
+        makeSource({
+          id: "SRC-QUOTE",
+          relation: "supporting",
+          targetAspect: "event_occurrence",
+          evidenceNature: "direct_statement",
+          evaluatedAtomicClaimId: "AC-01",
+        }),
+      ],
+    });
+
+    expect(verdict.atomicAssessments?.[0].status).toBe("TRUE");
+    expect(verdict.atomicAssessments?.[1].status).toBe("UNVERIFIED");
+    expect(verdict.claimVerdict).toBe("UNVERIFIED");
+  });
+
   it("keeps Claim Verdict FALSE separate from debunking Post Stance (@vereditum rule)", () => {
     const verdict = computeVerdictFromEvidence({
       primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
@@ -241,11 +424,93 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
           publisher: "Bank Indonesia",
           relation: "supporting",
           sourceTier: "official_government",
+          evidenceNature: "direct_statement",
+          targetAspect: "plan_or_target",
+        }),
+      ],
+    });
+    expect(verdict.claimVerdict).toBe("TRUE");
+  });
+
+  it("confirms announced plan details without inferring actual program implementation", () => {
+    const policyAtoms = [
+      {
+        id: "AC-01",
+        category: "main_event" as const,
+        label: "Pengumuman program",
+        proposition: "Pemerintah mengumumkan Program Satu Orang Satu Rekening",
+        requiredForFullConfirmation: true,
+      },
+      {
+        id: "AC-02",
+        category: "time_and_location" as const,
+        label: "Target waktu",
+        proposition: "Program ditargetkan terealisasi dalam dua bulan",
+        requiredForFullConfirmation: true,
+      },
+      {
+        id: "AC-03",
+        category: "quantity_or_measurement" as const,
+        label: "Saldo awal",
+        proposition: "Saldo awal yang direncanakan adalah Rp50.000",
+        requiredForFullConfirmation: true,
+      },
+      {
+        id: "AC-04",
+        category: "outcome_or_result" as const,
+        label: "Hasil aktual (pemeriksaan terpisah)",
+        proposition: "Program telah benar-benar berjalan",
+        requiredForFullConfirmation: false,
+      },
+    ];
+
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim:
+        "Program 1 Orang 1 Rekening terealisasi 2 bulan lagi, isinya saldo Rp50.000",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyampaikan rencana program.",
+      atomicClaims: policyAtoms,
+      sources: [
+        makeSource({
+          id: "SRC-BAKOM",
+          title: "Pemerintah segera merealisasikan program satu orang satu rekening",
+          url: "https://bakom.go.id/siap-siap-pemerintah-segera-realisasikan-program-satu-orang-satu-rekening/",
+          domain: "bakom.go.id",
+          publisher: "Bakom",
+          publishedAt: "2026-11-05",
+          publicationDateBasis: "verified",
+          snippet:
+            "Pemerintah mengumumkan program. Airlangga menargetkan realisasi dua bulan lagi dan saldo awal Rp50.000; implementasi masih difinalisasi.",
+          relation: "supporting",
+          targetAspect: "plan_or_target",
+          evidenceNature: "direct_statement",
+          evaluatedAtomicClaimIds: ["AC-01", "AC-02", "AC-03"],
+          claimEvaluated:
+            "Pengumuman, target dua bulan, dan saldo awal Rp50.000",
+          sourceTier: "official_government",
+          rationale:
+            "Pernyataan resmi mengonfirmasi rencana, target, dan nominal awal; belum ada bukti program berjalan.",
         }),
       ],
     });
 
+    expect(
+      verdict.atomicAssessments
+        ?.filter((assessment) => assessment.id !== "AC-04")
+        .map((assessment) => assessment.status)
+    ).toEqual(["TRUE", "TRUE", "TRUE"]);
+    expect(
+      verdict.atomicAssessments?.find(
+        (assessment) => assessment.id === "AC-04"
+      )?.status
+    ).toBe("UNVERIFIED");
     expect(verdict.claimVerdict).toBe("TRUE");
+    expect(verdict.explanation).toContain("belum terverifikasi");
+    expect(
+      verdict.qualifiedStatusLabels?.some((label) =>
+        label.includes("HASIL AKTUAL")
+      )
+    ).toBe(true);
   });
 
   it("returns OUTDATED when outdated context signal dominates", () => {

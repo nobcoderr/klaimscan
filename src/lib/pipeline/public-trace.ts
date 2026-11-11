@@ -22,8 +22,7 @@ export function buildPublicOriginTrace(params: {
       (s) =>
         s.relation !== "irrelevant" &&
         (s.sourceTier === "official_government" ||
-          s.sourceTier === "fact_checker" ||
-          s.relation === "contradicting")
+          s.sourceTier === "fact_checker")
     )
     .slice(0, 6)
     .map((s) => ({
@@ -54,7 +53,15 @@ export function buildPublicOriginTrace(params: {
     .slice(0, 6)) {
     timeline.push({
       id: `tl-${src.id}`,
-      timestampLabel: src.publishedAt || "Tanggal publikasi tidak tercantum",
+      timestampLabel: src.publishedAt
+        ? src.publicationDateBasis === "verified"
+          ? `Terbit terverifikasi: ${src.publishedAt}`
+          : `Tanggal terbit belum diverifikasi: ${src.publishedAt}`
+        : src.inferredPublishedAt
+          ? `Tanggal terbit perkiraan dari URL: ${src.inferredPublishedAt}`
+          : src.sourceEventDate
+            ? `Tanggal peristiwa (${src.sourceEventDateBasis ?? "unknown"}): ${src.sourceEventDate}`
+            : "Tanggal terbit/peristiwa tidak diketahui",
       eventType:
         src.sourceTier === "official_government"
           ? "official_statement"
@@ -62,7 +69,8 @@ export function buildPublicOriginTrace(params: {
       title: `${src.publisher} (${src.relation})`,
       description: src.title,
       sourceUrl: src.url,
-      verifiedDate: src.publishedAt,
+      verifiedDate:
+        src.publicationDateBasis === "verified" ? src.publishedAt : null,
     });
   }
 

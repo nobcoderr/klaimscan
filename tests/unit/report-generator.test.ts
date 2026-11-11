@@ -53,6 +53,20 @@ describe("report-generator & public-trace compliance", () => {
         origin: "openai_web_search",
         rationale: "Sekadar mengulang klaim.",
       },
+      {
+        id: "SRC-03",
+        title: "Laporan media tentang aturan SIM",
+        url: "https://www.kompas.com/nasional/read/123",
+        domain: "kompas.com",
+        publisher: "Kompas",
+        publishedAt: null,
+        snippet: "Laporan media membahas aturan yang sama.",
+        relation: "contradicting",
+        claimEvaluated: extraction.primaryClaim,
+        sourceTier: "credible_media",
+        origin: "openai_web_search",
+        rationale: "Pemberitaan media.",
+      },
     ];
 
     const verdict = computeVerdictFromEvidence({
@@ -85,12 +99,18 @@ describe("report-generator & public-trace compliance", () => {
     expect(report.imageMetadata.sha256).toHaveLength(64);
     expect(report.imageMetadata.persistedOnServer).toBe(false);
     expect(report.supportingEvidence).toHaveLength(1);
-    expect(report.contradictingEvidence).toHaveLength(1);
+    expect(report.contradictingEvidence).toHaveLength(2);
     expect(report.publicOriginTrace.visibleAccountHandle).toBe("@vereditum");
     expect(report.publicOriginTrace.attributionCaveat).toContain(
       "penulis asli"
     );
     expect(report.publicOriginTrace.privacyGuarantee).toContain("IP pribadi");
+    expect(report.publicOriginTrace.clarificationSources).toHaveLength(1);
+    expect(
+      report.publicOriginTrace.clarificationSources.some(
+        (source) => source.publisher === "Kompas"
+      )
+    ).toBe(false);
     expect(report.limitations.length).toBeGreaterThanOrEqual(3);
   });
 });
