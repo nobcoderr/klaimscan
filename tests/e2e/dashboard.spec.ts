@@ -38,7 +38,7 @@ test.describe("KLAIMSCAN AI verification workspace", () => {
       page.getByRole("columnheader", { name: "Judul & URL Sumber" })
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "D-1", exact: true }).click();
+    await page.getByRole("button", { name: "Buka KS-DEMO-001" }).click();
 
     await expect(page.getByText(/DEMO MODE — Fixture Data/i)).toBeVisible();
 
@@ -72,18 +72,18 @@ test.describe("KLAIMSCAN AI verification workspace", () => {
     await expect(page.getByRole("tab", { name: "Bukti" })).toBeVisible();
 
     // Switch through demo fixtures (D-4 TRUE, D-5 UNVERIFIED, D-3 OUTDATED, D-1 FALSE)
-    await page.getByRole("button", { name: "D-4", exact: true }).click();
+    await page.getByRole("button", { name: /D-4 · KS-DEMO-004/ }).click();
     await expect(page.getByText("TRUE • TERVERIFIKASI")).toBeVisible();
 
-    await page.getByRole("button", { name: "D-5", exact: true }).click();
+    await page.getByRole("button", { name: /D-5 · KS-DEMO-005/ }).click();
     await expect(
       page.getByText("UNVERIFIED • BELUM TERVERIFIKASI")
     ).toBeVisible();
 
-    await page.getByRole("button", { name: "D-3", exact: true }).click();
+    await page.getByRole("button", { name: /D-3 · KS-DEMO-003/ }).click();
     await expect(page.getByText("OUTDATED • KEDALUWARSA")).toBeVisible();
 
-    await page.getByRole("button", { name: "D-1", exact: true }).click();
+    await page.getByRole("button", { name: /D-1 · KS-DEMO-001/ }).click();
     await expect(page.getByText("FALSE • HOAKS")).toBeVisible();
 
     await page.getByRole("tab", { name: "Bukti" }).click();

@@ -155,7 +155,11 @@ export function KlaimscanDashboard({
                 Pemeriksaan baru
               </Button>
             </header>
-            <div className="no-print">
+            <div className="no-print space-y-3">
+              <p className="max-w-2xl font-sans text-sm leading-relaxed text-muted-foreground">
+                Halaman ini menampilkan satu kasus saja. Daftar lengkap ada di
+                Riwayat.
+              </p>
               <DemoFixtureSwitch
                 activeCaseId={activeCaseId}
                 onSelect={(id) => openCase(id)}
@@ -185,15 +189,11 @@ export function KlaimscanDashboard({
                 Riwayat kasus
               </h1>
               <p className="font-sans text-base leading-relaxed text-muted-foreground">
-                Riwayat kasus menampilkan pemeriksaan pada sesi browser ini
-                bersama fixture contoh. Pilih satu baris untuk membuka
-                hasilnya.
+                Riwayat menampilkan seluruh pemeriksaan pada sesi ini, termasuk
+                enam fixture contoh. Pilih Buka pada satu baris untuk membuka
+                hasil kasus itu saja.
               </p>
             </header>
-            <DemoFixtureSwitch
-              activeCaseId={activeCaseId}
-              onSelect={(id) => openCase(id)}
-            />
             <CaseHistoryView
               cases={allCases}
               activeCaseId={activeCaseId}

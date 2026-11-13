@@ -157,6 +157,7 @@ export function CaseHistoryView({
                     type="button"
                     size="sm"
                     variant="outline"
+                    aria-label={`Buka ${item.caseId}`}
                     onClick={() => onSelectCase(item.caseId)}
                   >
                     Buka

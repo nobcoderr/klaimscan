@@ -1,0 +1,10 @@
+---
+description: Push product updates to GitHub and Vercel without waiting for another instruction
+alwaysApply: true
+---
+
+# Push updates
+
+When a product update in this repository is finished and the working tree has changes that belong in the project, commit them and push to `origin` on the `nobcoderr/klaimscan` repository. Production deploys from that push through the existing Vercel GitHub integration. Do this without waiting for a separate push instruction.
+
+Do not change git config, force-push, skip hooks, or commit secrets such as `.env.local`. Confirm the production deployment for the pushed commit reaches Ready on `klaimscan.vercel.app`.

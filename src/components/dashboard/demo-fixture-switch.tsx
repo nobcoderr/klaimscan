@@ -15,26 +15,29 @@ export function DemoFixtureSwitch({
   return (
     <div className="space-y-3">
       <p className="font-mono text-xs tracking-[0.16em] text-muted-foreground">
-        KASUS CONTOH
+        SATU KASUS CONTOH
       </p>
-      <div className="flex flex-wrap gap-2" aria-label="Pilih kasus contoh">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3" aria-label="Pilih kasus contoh">
         {DEMO_CASES.map((demo, index) => {
           const selected = demo.caseId === activeCaseId;
           return (
             <button
               key={demo.caseId}
               type="button"
-              title={demo.demoCategoryLabel || demo.title}
+              title={demo.claimExtraction.primaryClaim}
               aria-pressed={selected}
               onClick={() => onSelect(demo.caseId)}
               className={cn(
-                "inline-flex h-11 min-w-11 cursor-pointer items-center justify-center border px-3 font-mono text-xs outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                "flex cursor-pointer flex-col items-start gap-1 border px-3 py-2 text-left outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
                 selected
                   ? "border-primary text-primary"
                   : "border-border text-muted-foreground hover:text-foreground"
               )}
             >
-              D-{index + 1}
+              <span className="font-mono text-xs">{`D-${index + 1} · ${demo.caseId}`}</span>
+              <span className="line-clamp-2 font-sans text-xs leading-relaxed normal-case tracking-normal">
+                {demo.claimExtraction.primaryClaim}
+              </span>
             </button>
           );
         })}
