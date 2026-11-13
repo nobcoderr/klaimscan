@@ -51,13 +51,9 @@ Status angka pada arsip MAFINDO tidak diubah menjadi salah satu bacaan di atas. 
 
 Beranda menjelaskan apa yang diperiksa dan empat langkah dari unggah sampai bacaan.
 
-![Beranda KLAIMSCAN](docs/screenshots/beranda.png)
-
 ### Periksa klaim
 
 Di sini screenshot diunggah. Berkas yang diterima PNG, JPG, atau WEBP, paling besar 4 MB. Metadata gambar dihapus sebelum teks dibaca, dan berkas tidak disimpan permanen di server.
-
-![Halaman unggah screenshot](docs/screenshots/periksa-klaim.png)
 
 ### Hasil pemeriksaan
 
@@ -65,41 +61,27 @@ Hasil menampilkan satu kasus. Pemilih di atas berpindah antar kasus contoh. Daft
 
 Lima bagian hasil:
 
-![Ringkasan hasil, teks yang terbaca, dan bacaan klaim](docs/screenshots/hasil-ringkasan.png)
+**Ringkasan** menampilkan teks yang terbaca dan bacaan klaim.
 
 **Bukti** memisahkan sumber yang mendukung, membantah, memberi konteks parsial, dan yang belum cukup.
 
-![Daftar bukti pada satu kasus](docs/screenshots/hasil-bukti.png)
-
 **Timeline** menyusun jejak waktu pemeriksaan.
-
-![Linimasa pemeriksaan](docs/screenshots/hasil-timeline.png)
 
 **Jejak publik** menampilkan platform dan akun yang terlihat pada screenshot, plus batasan yang tidak dilakukan: tidak ada pelacakan IP, alamat, atau identitas hukum.
 
-![Jejak publik yang terlihat pada unggahan](docs/screenshots/hasil-jejak-publik.png)
-
 **Laporan** adalah berkas yang bisa dicetak atau disimpan sebagai PDF.
-
-![Laporan pemeriksaan yang bisa dicetak](docs/screenshots/hasil-laporan.png)
 
 ### Riwayat kasus
 
 Riwayat adalah daftar seluruh pemeriksaan pada sesi browser ini, termasuk fixture contoh. Satu baris membuka satu hasil. Tabel di bawahnya mengumpulkan tautan sumber dari kasus yang sedang dimuat, bukan metrik platform.
 
-![Daftar kasus dan tautan sumber](docs/screenshots/riwayat.png)
-
 ### Metodologi
 
 Metodologi menjelaskan enam tahap yang sama dengan diagram di atas, beserta arti tiap bacaan.
 
-![Penjelasan enam tahap pemeriksaan](docs/screenshots/metodologi.png)
-
 ### Tentang
 
 Tentang merangkum apa yang dihasilkan dan apa yang tidak diklaim oleh pemeriksaan ini.
-
-![Halaman tentang KLAIMSCAN](docs/screenshots/tentang.png)
 
 ## Yang diperiksa
 
@@ -170,7 +152,6 @@ src/
     ├── image/
     ├── pipeline/
     └── security/
-docs/screenshots/
 tests/
 ├── fixtures/
 ├── unit/
