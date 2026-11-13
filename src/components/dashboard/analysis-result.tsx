@@ -668,7 +668,7 @@ export function AnalysisResult({
       )}
 
       {/* Dual Split Cards matching SOC Dashboard */}
-      <div className="no-print grid gap-4 md:grid-cols-2">
+      <div className="ks-ledger no-print grid gap-4 rounded-2xl md:grid-cols-2">
         <Card className={cn("border", verdictStyle.borderClass)}>
           <CardContent className="flex flex-col justify-between gap-4 pt-5">
             <div className="flex items-start justify-between gap-3">
@@ -1747,6 +1747,7 @@ export function AnalysisResult({
                     verdict ditetapkan sebagai UNVERIFIED.
                   </p>
                 ) : (
+                  <div className="ks-ledger overflow-hidden rounded-xl">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -1800,6 +1801,7 @@ export function AnalysisResult({
                       ))}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </div>
 

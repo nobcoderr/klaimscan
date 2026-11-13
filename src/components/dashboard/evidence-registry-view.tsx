@@ -51,7 +51,7 @@ export function EvidenceRegistryView({
             <Badge variant="default">URL Tervalidasi</Badge>
           </div>
         </CardHeader>
-        <CardContent className="pt-4">
+        <CardContent className="ks-ledger overflow-hidden rounded-b-2xl p-0">
           <Table>
             <TableHeader>
               <TableRow>

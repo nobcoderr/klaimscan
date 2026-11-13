@@ -96,7 +96,7 @@ export function CaseHistoryView({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-4">
+      <CardContent className="ks-ledger overflow-hidden rounded-b-2xl p-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -124,7 +124,7 @@ export function CaseHistoryView({
                   item.caseId === activeCaseId ? "bg-secondary/80" : undefined
                 }
               >
-                <TableCell className="font-mono text-xs text-primary">
+                <TableCell className="whitespace-nowrap font-mono text-xs text-primary">
                   <div>{item.caseId}</div>
                   {item.isDemo && (
                     <span className="text-[10px] text-verdict-mislead">
