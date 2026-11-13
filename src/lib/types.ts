@@ -265,7 +265,11 @@ export interface EvidenceSource {
   evaluatedAtomicClaimIds?: string[];
   claimEvaluated: string;
   sourceTier: SourceTier;
-  origin: "google_fact_check" | "openai_web_search" | "demo_fixture";
+  origin:
+    | "google_fact_check"
+    | "openai_web_search"
+    | "mafindo_yudistira"
+    | "demo_fixture";
   ratingText?: string | null;
   rationale: string;
 }
@@ -356,6 +360,7 @@ export interface InvestigationReport {
 export interface ServerConfigStatus {
   openAiConfigured: boolean;
   factCheckConfigured: boolean;
+  mafindoConfigured: boolean;
   visionModel: string;
   searchModel: string;
   usingFallbackVisionModel: boolean;

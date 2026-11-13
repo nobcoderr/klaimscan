@@ -27,16 +27,16 @@ function completedDemoSteps(details: string[]) {
 const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
   {
     caseId: "KS-DEMO-001",
-    title: "SIM seumur hidup tanpa perlu perpanjangan mulai berlaku nasional",
+    title: "Kapolri bakal berlakukan SIM seumur hidup",
     isDemo: true,
     demoCategoryLabel: "Debunking Post (Verdict FALSE / Stance Debunking)",
     checkedAt: "2026-11-10T09:15:00.000Z",
     analystNotes:
       "Fixture DEMO MODE: membedakan klaim FALSE dari akun pemeriksa fakta yang sedang membantah hoaks.",
     imageMetadata: {
-      fileName: "instagram-vereditum-sim.png",
-      mimeType: "image/png",
-      originalBytes: 248320,
+      fileName: "vereditum-sim.jpg",
+      mimeType: "image/jpeg",
+      originalBytes: 104807,
       sanitizedBytes: 246100,
       metadataRemovedBytes: 2220,
       strippedSegments: ["PNG tEXt", "PNG iTXt"],
@@ -46,15 +46,14 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
     },
     claimExtraction: {
       extractedText:
-        "@vereditum • HOAKS: Kabar SIM berlaku seumur hidup gratis tanpa perpanjangan TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
-      extractedHeadline: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
-      graphicOverlayTexts: ["HOAKS / KLARIFIKASI"],
-      extractedCaption:
-        "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+        "vereditum • The hoax, vs... Kapolri Bakal Berlakukan SIM Seumur Hidup, Dinilai Bisa Pangkas Birokrasi & Mencegah Praktik Pungli.",
+      extractedHeadline:
+        "Kapolri Bakal Berlakukan SIM Seumur Hidup, Dinilai Bisa Pangkas Birokrasi & Mencegah Praktik Pungli.",
+      graphicOverlayTexts: ["HOAX"],
+      extractedCaption: "The hoax, vs...",
       captionTruncated: false,
-      clarificationOrDebunkText:
-        "HOAKS / KLARIFIKASI · TIDAK BENAR (Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun)",
-      primaryClaim: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+      clarificationOrDebunkText: "The hoax, vs... · HOAX",
+      primaryClaim: "Kapolri akan memberlakukan SIM seumur hidup",
       secondaryClaims: [
         "Perubahan masa berlaku SIM tidak memerlukan biaya perpanjangan lagi",
       ],
@@ -62,9 +61,9 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
         {
           id: "NC-01",
           subject: "Surat Izin Mengemudi (SIM)",
-          predicateAction: "berlaku seumur hidup gratis tanpa perpanjangan",
+          predicateAction: "akan memberlakukan SIM seumur hidup",
           objectTarget: "Pemegang SIM nasional",
-          proposition: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          proposition: "Kapolri akan memberlakukan SIM seumur hidup",
           eventDate: "November 2026",
           legalOrAdministrativeStatus: "Regulasi tetap 5 tahun (UU No. 22 Tahun 2009)",
           sourceRole: "headline",
@@ -78,49 +77,49 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
           id: "AC-01",
           category: "main_event",
           label: "Klaim Kebijakan yang Diuji",
-          proposition: "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          proposition: "Kapolri akan memberlakukan SIM seumur hidup",
           requiredForFullConfirmation: true,
         },
       ],
       ocr: {
-        extractedHeadline: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
-        graphicOverlayTexts: ["HOAKS / KLARIFIKASI"],
-        extractedCaption:
-          "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
+        extractedHeadline:
+          "Kapolri Bakal Berlakukan SIM Seumur Hidup, Dinilai Bisa Pangkas Birokrasi & Mencegah Praktik Pungli.",
+        graphicOverlayTexts: ["HOAX"],
+        extractedCaption: "The hoax, vs...",
         captionTruncated: false,
         publisherOrAccountName: "Vereditum Fact Check",
         visibleAccountHandle: "@vereditum",
         visiblePostUrl: "https://instagram.com/vereditum",
-        visiblePublicationDate: "3 jam lalu",
-        clarificationOrDebunkText: "HOAKS / KLARIFIKASI · TIDAK BENAR",
+        visiblePublicationDate: "1 hari yang lalu",
+        clarificationOrDebunkText: "The hoax, vs... · HOAX",
         rawTranscript:
-          "@vereditum • HOAKS: Kabar SIM berlaku seumur hidup gratis tanpa perpanjangan TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009.",
+          "vereditum • The hoax, vs... Kapolri Bakal Berlakukan SIM Seumur Hidup, Dinilai Bisa Pangkas Birokrasi & Mencegah Praktik Pungli.",
         language: "id",
         platform: "Instagram",
         ocrRegions: [
           {
             id: "OCR-01",
             role: "publisher",
-            text: "@vereditum • Klarifikasi Fakta",
-            bbox: { x: 85, y: 140, width: 420, height: 68 },
+            text: "vereditum",
+            bbox: { x: 90, y: 188, width: 280, height: 48 },
           },
           {
             id: "OCR-02",
-            role: "debunk_note",
-            text: "HOAKS / KLARIFIKASI",
-            bbox: { x: 85, y: 315, width: 250, height: 85 },
+            role: "caption",
+            text: "The hoax, vs...",
+            bbox: { x: 60, y: 258, width: 420, height: 48 },
           },
           {
             id: "OCR-03",
-            role: "headline",
-            text: "SIM Seumur Hidup Gratis Tanpa Perpanjangan",
-            bbox: { x: 85, y: 445, width: 760, height: 90 },
+            role: "debunk_note",
+            text: "HOAX",
+            bbox: { x: 572, y: 373, width: 390, height: 150 },
           },
           {
             id: "OCR-04",
-            role: "caption",
-            text: "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
-            bbox: { x: 85, y: 560, width: 790, height: 145 },
+            role: "headline",
+            text: "Kapolri Bakal Berlakukan SIM Seumur Hidup, Dinilai Bisa Pangkas Birokrasi & Mencegah Praktik Pungli.",
+            bbox: { x: 170, y: 516, width: 700, height: 170 },
           },
         ],
       },
@@ -149,7 +148,7 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
       postClassification: "Postingan Membantah Klaim (Debunking)",
       postStance: "debunking_claim",
       summary:
-        "FALSE (Hoaks): SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+        "FALSE (Hoaks): Kapolri akan memberlakukan SIM seumur hidup",
       explanation:
         "Tiga sumber resmi dan pemeriksa fakta terindeks membantah klaim SIM seumur hidup. Korlantas Polri menegaskan masa berlaku SIM tetap 5 tahun sesuai UU No. 22 Tahun 2009. Namun postingan @vereditum berstatus Membantah Klaim (Debunking), sehingga akun tidak dilabeli sebagai pembuat hoaks.",
       evidenceMetrics: {
@@ -174,7 +173,7 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
           "Ketentuan penerbitan dan perpanjangan SIM tetap berlaku selama 5 tahun sesuai Pasal 85 UU Nomor 22 Tahun 2009 tentang LLAJ.",
         relation: "contradicting",
         claimEvaluated:
-          "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          "Kapolri akan memberlakukan SIM seumur hidup",
         sourceTier: "official_government",
         origin: "demo_fixture",
         ratingText: "Klarifikasi Resmi",
@@ -192,7 +191,7 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
           "Klaim SIM berlaku seumur hidup tanpa perpanjangan termasuk kategori disinformasi yang berulang.",
         relation: "contradicting",
         claimEvaluated:
-          "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          "Kapolri akan memberlakukan SIM seumur hidup",
         sourceTier: "official_government",
         origin: "demo_fixture",
         ratingText: "Disinformasi",
@@ -210,7 +209,7 @@ const BASE_DEMO_FIXTURE_CASES: InvestigationReport[] = [
           "Narasi SIM seumur hidup gratis tidak sesuai dengan putusan hukum dan aturan perpanjangan SIM yang berlaku.",
         relation: "contradicting",
         claimEvaluated:
-          "SIM berlaku seumur hidup gratis tanpa perlu perpanjangan",
+          "Kapolri akan memberlakukan SIM seumur hidup",
         sourceTier: "fact_checker",
         origin: "demo_fixture",
         ratingText: "Salah",

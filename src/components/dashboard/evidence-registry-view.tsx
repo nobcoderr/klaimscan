@@ -31,54 +31,22 @@ export function EvidenceRegistryView({
     }))
   );
 
-  const officialCount = rows.filter(
-    (r) => r.src.sourceTier === "official_government"
-  ).length;
-  const factCheckCount = rows.filter(
-    (r) => r.src.sourceTier === "fact_checker"
-  ).length;
-
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-5">
-            <p className="font-mono text-xs uppercase text-[#8BA4C0]">
-              Total Tautan Bukti
-            </p>
-            <p className="mt-1 font-heading text-3xl font-bold text-[#F3F8FF]">
-              {String(rows.length).padStart(3, "0")}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5">
-            <p className="font-mono text-xs uppercase text-[#8BA4C0]">
-              Lembaga Pemerintah (.go.id)
-            </p>
-            <p className="mt-1 font-heading text-3xl font-bold text-[#34D399]">
-              {String(officialCount).padStart(3, "0")}
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-5">
-            <p className="font-mono text-xs uppercase text-[#8BA4C0]">
-              Penerbit Fact-Check
-            </p>
-            <p className="mt-1 font-heading text-3xl font-bold text-[#45DDEB]">
-              {String(factCheckCount).padStart(3, "0")}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="max-w-2xl">
+        <h2 className="font-heading text-2xl font-semibold">Sumber pada kasus ini</h2>
+        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          {rows.length} tautan dari kasus yang sedang dimuat di browser ini,
+          termasuk fixture contoh. Angka ini bukan metrik platform.
+        </p>
       </div>
 
       <Card>
-        <CardHeader className="border-b border-[#254159]/70 pb-4">
+        <CardHeader className="border-b border-[#2A3238]/70 pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-[#45DDEB]" />
-              Evidence Sources Registry
+              <ShieldCheck className="size-5 text-[#D4FC36]" />
+              Daftar tautan
             </CardTitle>
             <Badge variant="default">URL Tervalidasi</Badge>
           </div>
@@ -101,7 +69,7 @@ export function EvidenceRegistryView({
                     <button
                       type="button"
                       onClick={() => onSelectCase(caseId)}
-                      className="cursor-pointer font-mono text-xs text-[#45DDEB] hover:underline"
+                      className="cursor-pointer font-mono text-xs text-[#D4FC36] hover:underline"
                     >
                       {caseId}
                     </button>
@@ -113,7 +81,7 @@ export function EvidenceRegistryView({
                   </TableCell>
                   <TableCell className="text-xs font-medium">
                     <div className="flex items-center gap-1.5">
-                      <Globe2 className="size-3.5 text-[#8BA4C0]" />
+                      <Globe2 className="size-3.5 text-[#8C989F]" />
                       {src.publisher}
                     </div>
                   </TableCell>
@@ -124,12 +92,12 @@ export function EvidenceRegistryView({
                     <EvidenceRelationBadge relation={src.relation} />
                   </TableCell>
                   <TableCell className="max-w-md text-xs">
-                    <p className="font-medium text-[#F3F8FF]">{src.title}</p>
+                    <p className="font-medium text-[#F3F4F5]">{src.title}</p>
                     <a
                       href={src.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-[#45DDEB] hover:underline"
+                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-[#D4FC36] hover:underline"
                     >
                       {src.url}
                       <ExternalLink className="size-3" />

@@ -1,5 +1,7 @@
 import OpenAI from "openai";
+import { fetchPublicTextExcerpt } from "@/lib/security/public-document";
 import { sanitizePublicEvidenceUrl } from "@/lib/security/url-guard";
+import { queryMafindoYudistira } from "./mafindo-provider";
 import type {
   ClaimExtractionResult,
   EvidenceDateBasis,
@@ -32,7 +34,7 @@ export interface CandidateEvidence {
   claimDate?: string | null;
   snippet: string;
   claimedText?: string | null;
-  origin: "google_fact_check" | "openai_web_search";
+  origin: "google_fact_check" | "openai_web_search" | "mafindo_yudistira";
   sourceTier: SourceTier;
   ratingText?: string | null;
   evidenceNature?: EvidenceNature;
@@ -906,6 +908,34 @@ export async function queryOpenAiWebSearch(params: {
   }
 }
 
+async function attachOneOriginalExcerpt(
+  candidates: CandidateEvidence[],
+  timeoutMs: number,
+  signal?: AbortSignal
+): Promise<void> {
+  const target = candidates.find(
+    (item) =>
+      item.origin === "mafindo_yudistira" &&
+      item.excerptBasis === "fact_check_api_metadata"
+  );
+  if (!target || signal?.aborted) return;
+  const reference = (target.snippet.match(/https?:\/\/[^\s]+/g) ?? [])
+    .map((url) => sanitizePublicEvidenceUrl(url.replace(/[.,;]+$/, "")))
+    .find((url) => url && url !== target.url);
+  if (!reference) return;
+  const excerpt = await fetchPublicTextExcerpt({
+    url: reference,
+    timeoutMs,
+    signal,
+  });
+  if (!excerpt) return;
+  target.snippet = sanitizeUntrustedText(
+    `${target.snippet} Cuplikan sumber asli: ${excerpt}`,
+    1400
+  );
+  target.excerptBasis = "direct_source_content";
+}
+
 export function deduplicateEvidence(
   list: CandidateEvidence[],
   limit = 12
@@ -925,9 +955,13 @@ export function deduplicateEvidence(
     const existingIsPlaceholder = isQueryPlaceholderSnippet(existing.snippet);
     const incomingIsPlaceholder = isQueryPlaceholderSnippet(item.snippet);
 
+    const incomingIsFactCheck =
+      item.origin === "google_fact_check" || item.origin === "mafindo_yudistira";
+    const existingIsFactCheck =
+      existing.origin === "google_fact_check" ||
+      existing.origin === "mafindo_yudistira";
     const preferIncoming =
-      (item.origin === "google_fact_check" &&
-        existing.origin !== "google_fact_check") ||
+      (incomingIsFactCheck && !existingIsFactCheck) ||
       (existingIsPlaceholder && !incomingIsPlaceholder) ||
       (!incomingIsPlaceholder &&
         item.snippet.length > existing.snippet.length);
@@ -969,8 +1003,27 @@ export function deduplicateEvidence(
     }
   }
 
+  const byArticle = new Map<string, CandidateEvidence>();
+  for (const item of byUrl.values()) {
+    const title = item.title
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+    const root = extractRegistrableRoot(item.url || item.domain);
+    const key =
+      title.length >= 16 && root ? `${root}|${title.slice(0, 80)}` : item.url;
+    const existing = byArticle.get(key);
+    if (!existing || item.snippet.length > existing.snippet.length) {
+      byArticle.set(key, {
+        ...item,
+        ratingText: item.ratingText || existing?.ratingText,
+        claimedText: item.claimedText || existing?.claimedText,
+      });
+    }
+  }
+
   // Rank excerpt quality within publisher/source-tier lanes; source authority is assessed later.
-  const sorted = Array.from(byUrl.values()).sort((a, b) => {
+  const sorted = Array.from(byArticle.values()).sort((a, b) => {
     const scoreOf = (c: CandidateEvidence) => {
       if (c.excerptBasis === "direct_source_content") return 4;
       if (c.excerptBasis === "ai_search_summary") return 3;
@@ -1030,6 +1083,7 @@ export async function retrieveEvidence(params: {
   client: OpenAI;
   searchModel: string;
   factCheckApiKey?: string;
+  mafindoApiKey?: string;
   extraction: ClaimExtractionResult;
   timeoutMs?: number;
   signal?: AbortSignal;
@@ -1041,6 +1095,7 @@ export async function retrieveEvidence(params: {
     client,
     searchModel,
     factCheckApiKey,
+    mafindoApiKey,
     extraction,
     timeoutMs,
     signal,
@@ -1058,10 +1113,16 @@ export async function retrieveEvidence(params: {
   const firstSearchTimeout = Math.max(500, Math.floor(searchTimeout * 0.75));
   const initialQueries = queryPlan.slice(0, 3);
 
-  const [factCheckRes, webSearchResults] = await Promise.all([
+  const [factCheckRes, mafindoRes, webSearchResults] = await Promise.all([
     queryGoogleFactCheckApi({
       queries: queryPlan.slice(0, 2),
       apiKey: factCheckApiKey,
+      timeoutMs: factCheckTimeout,
+      signal,
+    }),
+    queryMafindoYudistira({
+      queries: queryPlan.slice(0, 1),
+      apiKey: mafindoApiKey,
       timeoutMs: factCheckTimeout,
       signal,
     }),
@@ -1081,7 +1142,8 @@ export async function retrieveEvidence(params: {
 
   const combined: CandidateEvidence[] = [];
   if (factCheckRes.warning) warnings.push(factCheckRes.warning);
-  combined.push(...factCheckRes.candidates);
+  if (mafindoRes.warning) warnings.push(mafindoRes.warning);
+  combined.push(...factCheckRes.candidates, ...mafindoRes.candidates);
 
   let webSearchCandidateCount = 0;
   for (const [index, result] of webSearchResults.entries()) {
@@ -1123,6 +1185,13 @@ export async function retrieveEvidence(params: {
         "Pencarian kontradiksi sebagai fallback tidak selesai dalam anggaran waktu yang tersisa."
       );
     }
+  }
+
+  const excerptBudget = timeoutMs
+    ? Math.min(2_000, timeoutMs - (Date.now() - startedAt))
+    : 0;
+  if (excerptBudget >= 800) {
+    await attachOneOriginalExcerpt(combined, excerptBudget, signal);
   }
 
   const deduped = deduplicateEvidence(combined, 8).map((item, idx) => ({

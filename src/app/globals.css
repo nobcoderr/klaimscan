@@ -1,13 +1,13 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Space+Grotesk:wght@500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700&family=Newsreader:ital,opsz,wght@0,6..72,500;0,6..72,650;0,6..72,700;1,6..72,500&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-heading: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --font-sans: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Newsreader", "Iowan Old Style", Palatino, serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -29,44 +29,39 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  --color-soc-bg: #07111e;
-  --color-soc-surface: #0d2133;
-  --color-soc-surface-elevated: #112940;
-  --color-soc-cyan: #45ddeb;
-  --color-soc-verified: #34d399;
-  --color-soc-threat: #f87171;
-  --color-soc-warning: #fbbf24;
-  --color-soc-text: #f3f8ff;
-  --color-soc-muted: #8ba4c0;
-  --color-soc-border: #254159;
+  --color-verdict-true: #34d399;
+  --color-verdict-false: #f87171;
+  --color-verdict-mislead: #f5c451;
+  --color-verdict-outdated: #f08a3e;
+  --color-verdict-open: #7ba3ff;
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
 }
 
 :root {
-  --background: #07111e;
-  --foreground: #f3f8ff;
-  --card: #0d2133;
-  --card-foreground: #f3f8ff;
-  --popover: #0d2133;
-  --popover-foreground: #f3f8ff;
-  --primary: #45ddeb;
-  --primary-foreground: #07111e;
-  --secondary: #112940;
-  --secondary-foreground: #f3f8ff;
-  --muted: #102438;
-  --muted-foreground: #8ba4c0;
-  --accent: #14324d;
-  --accent-foreground: #f3f8ff;
+  --background: #090b0d;
+  --foreground: #f3f4f5;
+  --card: #15191c;
+  --card-foreground: #f3f4f5;
+  --popover: #15191c;
+  --popover-foreground: #f3f4f5;
+  --primary: #d4fc36;
+  --primary-foreground: #090b0d;
+  --secondary: #1c2226;
+  --secondary-foreground: #f3f4f5;
+  --muted: #1c2226;
+  --muted-foreground: #8c989f;
+  --accent: #1c2226;
+  --accent-foreground: #f3f4f5;
   --destructive: #f87171;
-  --destructive-foreground: #07111e;
-  --border: #254159;
-  --input: #17324a;
-  --ring: #45ddeb;
-  --radius: 0.625rem;
+  --destructive-foreground: #090b0d;
+  --border: #2a3238;
+  --input: #1c2226;
+  --ring: #d4fc36;
+  --radius: 0.375rem;
 }
 
 @layer base {
@@ -76,9 +71,9 @@
 
   html,
   body {
-    background-color: #07111e;
-    color: #f3f8ff;
-    font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+    background-color: #090b0d;
+    color: #f3f4f5;
+    font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   }
 
   h1,
@@ -86,45 +81,90 @@
   h3,
   h4,
   .font-heading {
-    font-family: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Newsreader", "Iowan Old Style", Palatino, serif;
+    font-optical-sizing: auto;
   }
 
   code,
   pre,
   .font-mono {
-    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+
+  a:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
   }
 }
 
-/* Subtle SOC grid texture */
-.soc-grid-bg {
-  background-image:
-    linear-gradient(to right, rgba(37, 65, 89, 0.16) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(37, 65, 89, 0.16) 1px, transparent 1px);
-  background-size: 36px 36px;
+.skip-link {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-/* Subtle scanner animation during AI image processing */
-@keyframes soc-scan-sweep {
+.skip-link:focus {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 80;
+  width: auto;
+  height: auto;
+  margin: 0;
+  overflow: visible;
+  clip: auto;
+  padding: 0.5rem 0.75rem;
+  background: #d4fc36;
+  color: #090b0d;
+  outline: 2px solid #d4fc36;
+  outline-offset: 2px;
+}
+
+.ks-grid {
+  background-image:
+    linear-gradient(to right, rgba(42, 50, 56, 0.35) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(42, 50, 56, 0.35) 1px, transparent 1px);
+  background-size: 80px 80px;
+}
+
+@keyframes ks-scan-sweep {
   0% {
-    top: 4%;
+    top: 6%;
     opacity: 0.35;
   }
   50% {
-    top: 90%;
-    opacity: 0.95;
+    top: 88%;
+    opacity: 0.9;
   }
   100% {
-    top: 4%;
+    top: 6%;
     opacity: 0.35;
   }
 }
 
 .animate-scan-line {
-  animation: soc-scan-sweep 2.4s ease-in-out infinite;
+  animation: ks-scan-sweep 2.4s ease-in-out infinite;
 }
 
-/* Clean Print / PDF export styling */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @media print {
   @page {
     size: A4;
@@ -147,7 +187,8 @@
     display: block !important;
   }
 
-  .print-surface {
+  .print-surface,
+  .print-surface * {
     background: #ffffff !important;
     color: #0f172a !important;
     border-color: #cbd5e1 !important;
@@ -158,7 +199,8 @@
     color: #475569 !important;
   }
 
-  a {
+  .print-surface a,
+  .print-surface a * {
     color: #0369a1 !important;
     text-decoration: underline !important;
   }

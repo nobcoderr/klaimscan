@@ -265,6 +265,7 @@ export async function runAnalysisPipeline(params: {
           client,
           searchModel: env.searchModel,
           factCheckApiKey: env.factCheckApiKey,
+          mafindoApiKey: env.mafindoApiKey,
           extraction,
           timeoutMs: retrievalBudgetMs,
           signal: pipelineController.signal,

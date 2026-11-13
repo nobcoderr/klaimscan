@@ -972,7 +972,10 @@ export function doesCandidateMatchProposition(
 }
 
 export function isVisualAuthenticityCandidate(
-  candidate: Pick<CandidateEvidence, "title" | "url" | "snippet" | "claimedText">,
+  candidate: Pick<
+    CandidateEvidence,
+    "title" | "url" | "snippet" | "claimedText" | "ratingText"
+  >,
   primaryClaim: string
 ): boolean {
   const claimExplicitlyAssertsAuthenticPhoto =
@@ -981,7 +984,7 @@ export function isVisualAuthenticityCandidate(
     );
   if (claimExplicitlyAssertsAuthenticPhoto) return false;
 
-  const titleAndUrl = `${candidate.url} ${candidate.title} ${candidate.claimedText ?? ""}`.toLowerCase();
+  const titleAndUrl = `${candidate.url} ${candidate.title} ${candidate.claimedText ?? ""} ${candidate.ratingText ?? ""}`.toLowerCase();
   const explicitlyVisualHoaxTitle =
     /(hoaks|salah|palsu|manipulasi|editan|ai|rekayasa)[-\s]+(foto|gambar|potret|tangkapan\s+layar)|(foto|gambar)[-\s]+(hoaks|editan|palsu|manipulasi|ai)/.test(
       titleAndUrl
@@ -1389,11 +1392,15 @@ export function mapEvaluationsToVerifiedSources(params: {
       sourceTier: candidate.sourceTier,
       evidenceNature:
         modelEval?.evidenceNature ??
-        (candidate.origin === "google_fact_check" ? "fact_check" : "unknown"),
+        (candidate.origin === "google_fact_check" ||
+        candidate.origin === "mafindo_yudistira"
+          ? "fact_check"
+          : "unknown"),
       independence: modelEval?.independence ?? "unknown",
       excerptBasis:
         candidate.excerptBasis ??
-        (candidate.origin === "google_fact_check"
+        (candidate.origin === "google_fact_check" ||
+        candidate.origin === "mafindo_yudistira"
           ? "fact_check_api_metadata"
           : candidate.snippet && !isQueryPlaceholderSnippet(candidate.snippet)
             ? "ai_search_summary"

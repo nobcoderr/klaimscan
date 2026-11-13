@@ -115,6 +115,7 @@ export function parseTrustedProxyMode(raw?: string): TrustedProxyMode {
 export interface ServerEnvConfig {
   openAiApiKey: string | undefined;
   factCheckApiKey: string | undefined;
+  mafindoApiKey: string | undefined;
   visionModel: string;
   searchModel: string;
   usingFallbackVisionModel: boolean;
@@ -135,6 +136,7 @@ export interface ServerEnvConfig {
 export function getServerEnvConfig(): ServerEnvConfig {
   const openAiApiKey = resolveEnvValue("OPENAI_API_KEY");
   const factCheckApiKey = resolveEnvValue("FACTCHECK_API_KEY");
+  const mafindoApiKey = resolveEnvValue("MAFINDO_API_KEY");
 
   const rawVisionModel = resolveEnvValue("OPENAI_VISION_MODEL");
   const rawSearchModel = resolveEnvValue("OPENAI_SEARCH_MODEL");
@@ -152,6 +154,7 @@ export function getServerEnvConfig(): ServerEnvConfig {
   return {
     openAiApiKey,
     factCheckApiKey,
+    mafindoApiKey,
     visionModel,
     searchModel,
     usingFallbackVisionModel: !rawVisionModel,
@@ -195,6 +198,7 @@ export function getServerConfigStatus(): ServerConfigStatus {
   return {
     openAiConfigured: Boolean(cfg.openAiApiKey),
     factCheckConfigured: Boolean(cfg.factCheckApiKey),
+    mafindoConfigured: Boolean(cfg.mafindoApiKey),
     visionModel: cfg.visionModel,
     searchModel: cfg.searchModel,
     usingFallbackVisionModel: cfg.usingFallbackVisionModel,

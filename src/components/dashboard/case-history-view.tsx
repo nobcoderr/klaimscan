@@ -60,22 +60,19 @@ export function CaseHistoryView({
 
   return (
     <Card>
-      <CardHeader className="border-b border-[#254159]/70 pb-4">
+      <CardHeader className="border-b border-[#2A3238]/70 pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle>Case History &amp; Demo Fixture Archive</CardTitle>
-            <p className="mt-1 text-xs text-[#8BA4C0]">
-              Berisi kasus hasil analisis sesi ini serta fixture DEMO MODE yang
-              dilabeli jelas (tanpa menyimpan screenshot pengguna secara
-              permanen).
-            </p>
+            <CardTitle className="font-heading text-2xl font-medium">
+              Daftar kasus
+            </CardTitle>
           </div>
           <Badge variant="secondary">{filtered.length} Kasus</Badge>
         </div>
 
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-sm flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-[#8BA4C0]" />
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-[#8C989F]" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -89,7 +86,7 @@ export function CaseHistoryView({
                 key={opt}
                 type="button"
                 size="sm"
-                variant={verdictFilter === opt ? "default" : "outline"}
+                variant={verdictFilter === opt ? "cyber" : "outline"}
                 onClick={() => setVerdictFilter(opt)}
               >
                 {opt}
@@ -113,14 +110,21 @@ export function CaseHistoryView({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {filtered.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={7} className="text-sm text-muted-foreground">
+                  Tidak ada kasus yang cocok dengan pencarian ini.
+                </TableCell>
+              </TableRow>
+            )}
             {filtered.map((item) => (
               <TableRow
                 key={item.caseId}
                 className={
-                  item.caseId === activeCaseId ? "bg-[#112940]/80" : undefined
+                  item.caseId === activeCaseId ? "bg-[#1C2226]/80" : undefined
                 }
               >
-                <TableCell className="font-mono text-xs text-[#45DDEB]">
+                <TableCell className="font-mono text-xs text-[#D4FC36]">
                   <div>{item.caseId}</div>
                   {item.isDemo && (
                     <span className="text-[10px] text-[#FBBF24]">
@@ -135,7 +139,7 @@ export function CaseHistoryView({
                   <div className="font-medium">
                     {item.claimExtraction.platform}
                   </div>
-                  <div className="font-mono text-[11px] text-[#8BA4C0]">
+                  <div className="font-mono text-[11px] text-[#8C989F]">
                     {item.claimExtraction.visibleAccountHandle || "Anonim/N/A"}
                   </div>
                 </TableCell>
@@ -145,7 +149,7 @@ export function CaseHistoryView({
                 <TableCell>
                   <PostStanceBadge stance={item.verdict.postStance} />
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[#8BA4C0]">
+                <TableCell className="font-mono text-[11px] text-[#8C989F]">
                   {formatWibTimestamp(item.checkedAt)}
                 </TableCell>
                 <TableCell className="text-right">

@@ -709,6 +709,7 @@ describe("Text-First News Verification Regression Suite (Tests A–G)", () => {
     vi.spyOn(envModule, "getServerEnvConfig").mockReturnValue({
       openAiApiKey: "sk-proj-test-key-1234567890",
       factCheckApiKey: undefined,
+      mafindoApiKey: undefined,
       visionModel: "gpt-5.4-mini",
       searchModel: "gpt-5.4-mini",
       usingFallbackVisionModel: false,

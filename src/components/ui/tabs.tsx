@@ -11,7 +11,7 @@ function Tabs({
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
-      className={cn("flex flex-col gap-4", className)}
+      className={cn("flex flex-col gap-6", className)}
       {...props}
     />
   );
@@ -25,7 +25,7 @@ function TabsList({
     <TabsPrimitive.List
       data-slot="tabs-list"
       className={cn(
-        "inline-flex h-10 w-fit items-center justify-center rounded-lg border border-[#254159] bg-[#07111E]/90 p-1 text-[#8BA4C0]",
+        "flex h-auto w-full items-end justify-start gap-1 overflow-x-auto border-b border-border bg-transparent p-0 text-muted-foreground",
         className
       )}
       {...props}
@@ -41,7 +41,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 font-mono text-xs font-medium tracking-wide transition-all outline-none cursor-pointer disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-[#13324D] data-[state=active]:text-[#45DDEB] data-[state=active]:border data-[state=active]:border-[#45DDEB]/35 hover:text-[#F3F8FF]",
+        "inline-flex min-h-11 cursor-pointer items-center justify-center whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:border-primary data-[state=active]:text-primary",
         className
       )}
       {...props}

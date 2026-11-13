@@ -9,9 +9,9 @@ function Toaster({ ...props }: ToasterProps) {
       className="toaster group"
       toastOptions={{
         style: {
-          background: "#0D2133",
-          color: "#F3F8FF",
-          border: "1px solid #254159",
+          background: "#15191C",
+          color: "#F3F4F5",
+          border: "1px solid #2A3238",
         },
       }}
       {...props}

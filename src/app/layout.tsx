@@ -3,9 +3,9 @@ import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "KLAIMSCAN AI — Evidence-Based Disinformation Intelligence Platform",
+  title: "KLAIMSCAN AI — Verifikasi klaim dari screenshot",
   description:
-    "Platform Threat Intelligence Dashboard untuk menganalisis klaim media sosial berbasis bukti resmi dan penelusuran fakta terbuka.",
+    "Membaca headline dan caption pada screenshot, lalu membandingkannya dengan sumber terbuka. Keaslian foto sampul tidak diperiksa.",
 };
 
 export default function RootLayout({
@@ -15,7 +15,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" className="dark">
-      <body className="min-h-screen bg-[#07111E] text-[#F3F8FF] antialiased selection:bg-[#45DDEB]/25 selection:text-[#F3F8FF]">
+      <body className="min-h-screen bg-background font-sans text-foreground antialiased selection:bg-primary/25 selection:text-foreground">
         {children}
         <Toaster position="bottom-right" richColors theme="dark" />
       </body>

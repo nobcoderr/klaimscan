@@ -1,17 +1,45 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
-  test("renders SOC dashboard, @vereditum role separation, demo cases, and all navigation views", async ({
+test.describe("KLAIMSCAN AI verification workspace", () => {
+  test("renders the product shell, text-first verification, demo cases, and result sections", async ({
     page,
   }) => {
     await page.goto("/");
 
-    await expect(page.getByText("Threat Intelligence Dashboard")).toBeVisible();
-    await expect(page.getByText("CASES ANALYZED")).toBeVisible();
-    await expect(page.getByText("FLAGGED CLAIMS")).toBeVisible();
-    await expect(page.getByText("SOURCES FOUND")).toBeVisible();
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Klaim di screenshot dibaca sebagai teks.",
+      })
+    ).toBeVisible();
+    await expect(page.getByText("CASES ANALYZED")).toHaveCount(0);
+    await expect(page.getByText("FLAGGED CLAIMS")).toHaveCount(0);
+    await expect(page.getByText("SOURCES FOUND")).toHaveCount(0);
 
-    // Verify DEMO MODE label is explicit on fixture case
+    const nav = page.getByRole("navigation", { name: "Navigasi utama" });
+
+    await nav.getByRole("button", { name: "Verifikasi" }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Periksa klaim" })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Muat Sample Uji", exact: true }).click();
+    await expect(
+      page.getByAltText("Preview screenshot yang akan dianalisis")
+    ).toBeVisible();
+
+    await nav.getByRole("button", { name: "Riwayat" }).click();
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Riwayat kasus" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Sumber pada kasus ini" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Judul & URL Sumber" })
+    ).toBeVisible();
+
+    await page.getByRole("button", { name: "D-1", exact: true }).click();
+
     await expect(page.getByText(/DEMO MODE — Fixture Data/i)).toBeVisible();
 
     // Verify @vereditum reference separation between Verdict (FALSE) and Post Stance (Debunking)
@@ -26,7 +54,6 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     await expect(page.getByText("EXTRACTED CAPTION")).toBeVisible();
     await expect(page.getByText("NORMALIZED FACTUAL CLAIMS")).toBeVisible();
     await expect(page.getByText("FACT CHECK VERDICT")).toBeVisible();
-    await expect(page.getByText("EVIDENCE SOURCES")).toBeVisible();
     await expect(
       page
         .getByText(
@@ -41,13 +68,10 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     await page.getByRole("button", { name: "CAPTION", exact: true }).click();
     await expect(page.getByText("CAPTION TERPILIH:")).toBeVisible();
 
-    // Load generated sample screenshot and verify preview renders on Dashboard
-    await page.getByRole("button", { name: "Muat Sample Uji", exact: true }).click();
-    await expect(
-      page.getByAltText("Preview screenshot yang akan dianalisis")
-    ).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Ringkasan" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Bukti" })).toBeVisible();
 
-    // Switch through Demo Mode fixtures in sidebar (D-4 TRUE, D-5 UNVERIFIED, D-3 OUTDATED, D-1 FALSE)
+    // Switch through demo fixtures (D-4 TRUE, D-5 UNVERIFIED, D-3 OUTDATED, D-1 FALSE)
     await page.getByRole("button", { name: "D-4", exact: true }).click();
     await expect(page.getByText("TRUE • TERVERIFIKASI")).toBeVisible();
 
@@ -62,28 +86,20 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     await page.getByRole("button", { name: "D-1", exact: true }).click();
     await expect(page.getByText("FALSE • HOAKS")).toBeVisible();
 
-    // Navigate all primary SOC sidebar views
-    const sidebarNav = page.getByRole("navigation", { name: "Navigasi utama" });
+    await page.getByRole("tab", { name: "Bukti" }).click();
+    await expect(page.getByText("EVIDENCE SOURCES")).toBeVisible();
 
-    await sidebarNav.getByRole("button", { name: /New Analysis/i }).click();
-    await expect(page.getByText("New Intelligence Analysis")).toBeVisible();
-
-    await sidebarNav.getByRole("button", { name: /Analysis Result/i }).click();
-    await expect(
-      page.getByText("Analysis Result — Claim vs Stance & Evidence")
-    ).toBeVisible();
-
-    await sidebarNav.getByRole("button", { name: /Evidence Timeline/i }).click();
+    await page.getByRole("tab", { name: "Timeline" }).click();
     await expect(
       page.getByText("Evidence Timeline & Chronological Audit")
     ).toBeVisible();
 
-    await sidebarNav.getByRole("button", { name: /Public Source Trace/i }).click();
+    await page.getByRole("tab", { name: "Jejak Publik" }).click();
     await expect(
       page.getByText("Public Source Trace (OSINT Terbatas)")
     ).toBeVisible();
 
-    await sidebarNav.getByRole("button", { name: /Case Report/i }).click();
+    await page.getByRole("tab", { name: "Laporan" }).click();
     await expect(
       page.getByText("Laporan Investigasi Pemeriksaan Fakta")
     ).toBeVisible();
@@ -95,14 +111,19 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
       page.getByText(/Batasan Metodologi, Jejak Publik & Privasi/i)
     ).toBeVisible();
 
-    await sidebarNav.getByRole("button", { name: /Case History/i }).click();
+    await nav.getByRole("button", { name: "Metodologi" }).click();
     await expect(
-      page.getByText("Case History & Demo Fixture Archive")
+      page.getByRole("heading", { level: 1, name: "Metodologi" })
     ).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Lima verdict" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Pembacaan teks" })).toBeVisible();
 
-    await sidebarNav.getByRole("button", { name: /Evidence Registry/i }).click();
+    await nav.getByRole("button", { name: "Tentang" }).click();
     await expect(
-      page.getByText("Evidence Sources Registry")
+      page.getByRole("heading", { level: 1, name: "Tentang" })
+    ).toBeVisible();
+    await expect(
+      page.getByText(/Tidak menyimpan screenshot secara permanen/i)
     ).toBeVisible();
   });
 
@@ -110,6 +131,10 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     page,
   }) => {
     await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "Navigasi utama" })
+      .getByRole("button", { name: "Verifikasi" })
+      .click();
 
     const oversizedBuffer = Buffer.alloc(4 * 1024 * 1024 + 64, 0);
     oversizedBuffer[0] = 0x89;
@@ -297,6 +322,10 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
     });
 
     await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "Navigasi utama" })
+      .getByRole("button", { name: "Verifikasi" })
+      .click();
 
     const portraitBytes = await page.evaluate(async () => {
       const c = document.createElement("canvas");
@@ -322,9 +351,7 @@ test.describe("KLAIMSCAN AI Threat Intelligence Dashboard", () => {
       buffer: Buffer.from(portraitBytes),
     });
 
-    await page
-      .getByRole("button", { name: /JALANKAN ANALISIS AI/i })
-      .click();
+    await page.getByRole("button", { name: "Periksa klaim ini" }).click();
 
     await expect(page.getByText("Screenshot Sesi Aktif")).toBeVisible();
 

@@ -23,7 +23,7 @@ export function createInitialPipelineSteps(): PipelineStepState[] {
       code: "03",
       label: "Web Evidence Search",
       description:
-        "Penelusuran langsung via OpenAI web_search & Google Fact Check API",
+        "Yudistira, Google Fact Check, dan web_search berjalan paralel. Status arsip bukan verdict.",
       status: "pending",
     },
     {

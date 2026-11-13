@@ -29,16 +29,16 @@ export function formatPostClassificationLabel(postStance: PostStance): string {
 export function verdictToIndonesianLabel(verdict: ClaimVerdict): string {
   switch (verdict) {
     case "FALSE":
-      return "Hoaks / Salah";
+      return "Hoaks";
     case "TRUE":
-      return "Terverifikasi / Benar";
+      return "Valid";
     case "MISLEADING":
       return "Menyesatkan";
     case "OUTDATED":
       return "Kedaluwarsa";
     case "UNVERIFIED":
     default:
-      return "Belum Terverifikasi";
+      return "Butuh verifikasi";
   }
 }
 

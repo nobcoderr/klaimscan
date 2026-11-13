@@ -21,6 +21,7 @@ function makeEnvConfig(
   return {
     openAiApiKey: "sk-proj-test-key-1234567890",
     factCheckApiKey: undefined,
+    mafindoApiKey: undefined,
     visionModel: "gpt-5.4-mini",
     searchModel: "gpt-5.4-mini",
     usingFallbackVisionModel: false,

@@ -44,14 +44,21 @@ import {
 } from "@/lib/types";
 import { cn, formatWibTimestamp } from "@/lib/utils";
 import {
+  ClaimReading,
   EvidenceRelationBadge,
+  getClaimReading,
   getVerdictStyle,
   PostStanceBadge,
   SourceTierBadge,
   VerdictBadge,
 } from "./verdict-badges";
 
-export type ResultViewTab = "assessment" | "timeline" | "trace" | "report";
+export type ResultViewTab =
+  | "assessment"
+  | "evidence"
+  | "timeline"
+  | "trace"
+  | "report";
 
 interface AnalysisResultProps {
   report: InvestigationReport;
@@ -115,6 +122,25 @@ function formatEvidenceNatureLabel(nature?: EvidenceNature): string {
   }
 }
 
+function formatOcrMapLabel(role: OcrRegionRole): string {
+  switch (role) {
+    case "headline":
+      return "HEADLINE";
+    case "graphic_overlay":
+      return "OVERLAY";
+    case "caption":
+      return "CAPTION";
+    case "publisher":
+      return "AKUN";
+    case "date":
+      return "TANGGAL";
+    case "debunk_note":
+      return "BANTAHAN";
+    default:
+      return "OCR";
+  }
+}
+
 function formatOcrRoleLabel(role: OcrRegionRole): string {
   switch (role) {
     case "headline":
@@ -136,17 +162,14 @@ function formatOcrRoleLabel(role: OcrRegionRole): string {
 
 function getQualifiedLabelVariant(
   label: string
-): "verified" | "threat" | "warning" | "default" {
+): "verified" | "threat" | "warning" | "outdated" | "default" {
   const upper = label.toUpperCase();
   if (upper.includes("DIBANTAH")) return "threat";
   if (upper.includes("TERKONFIRMASI")) {
     return "verified";
   }
-  if (
-    upper.includes("MENYESATKAN") ||
-    upper.includes("KEDALUWARSA") ||
-    upper.includes("PARSIAL")
-  ) {
+  if (upper.includes("KEDALUWARSA")) return "outdated";
+  if (upper.includes("MENYESATKAN") || upper.includes("PARSIAL")) {
     return "warning";
   }
   return "default";
@@ -171,7 +194,7 @@ function EvidenceGroupList({
         </h4>
       </div>
       {items.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#254159] bg-[#07111E]/45 p-4 text-xs text-[#8BA4C0]">
+        <div className="rounded-xl border border-dashed border-[#2A3238] bg-[#090B0D]/45 p-4 text-xs text-[#8C989F]">
           {emptyLabel}
         </div>
       ) : (
@@ -179,12 +202,12 @@ function EvidenceGroupList({
           {items.map((src) => (
             <div
               key={`${src.id}-${src.url}`}
-              className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4 transition-colors hover:border-[#45DDEB]/45"
+              className="rounded-xl border border-[#2A3238] bg-[#090B0D]/75 p-4 transition-colors hover:border-[#D4FC36]/45"
             >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div className="space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-xs text-[#45DDEB]">
+                    <span className="font-mono text-xs text-[#D4FC36]">
                       {src.id}
                     </span>
                     <SourceTierBadge tier={src.sourceTier} />
@@ -241,7 +264,7 @@ function EvidenceGroupList({
                       <Badge variant="outline">Rating: {src.ratingText}</Badge>
                     )}
                   </div>
-                  <h5 className="font-heading text-sm font-semibold text-[#F3F8FF]">
+                  <h5 className="font-heading text-sm font-semibold text-[#F3F4F5]">
                     {src.title}
                   </h5>
                 </div>
@@ -249,14 +272,14 @@ function EvidenceGroupList({
                   href={src.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 rounded-md border border-[#254159] bg-[#0D2133] px-2.5 py-1 font-mono text-xs text-[#45DDEB] hover:border-[#45DDEB]/60"
+                  className="inline-flex items-center gap-1 rounded-md border border-[#2A3238] bg-[#15191C] px-2.5 py-1 font-mono text-xs text-[#D4FC36] hover:border-[#D4FC36]/60"
                 >
                   <span>{src.domain}</span>
                   <ExternalLink className="size-3" />
                 </a>
               </div>
 
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-[#8BA4C0]">
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] text-[#8C989F]">
                 <Badge variant="outline">
                   {formatEvidenceNatureLabel(src.evidenceNature)}
                 </Badge>
@@ -280,11 +303,11 @@ function EvidenceGroupList({
                   <span>Judul/URL saja; isi sumber belum diperiksa.</span>
                 )}
               </div>
-              <p className="mt-2 text-xs leading-relaxed text-[#8BA4C0]">
+              <p className="mt-2 text-xs leading-relaxed text-[#8C989F]">
                 {src.snippet}
               </p>
-              <p className="mt-2 border-t border-[#254159]/50 pt-2 text-xs text-[#F3F8FF]/85">
-                <strong className="font-mono text-[#45DDEB]">
+              <p className="mt-2 border-t border-[#2A3238]/50 pt-2 text-xs text-[#F3F4F5]/85">
+                <strong className="font-mono text-[#D4FC36]">
                   Klaim yang dievaluasi:
                 </strong>{" "}
                 {src.claimEvaluated} — {src.rationale}
@@ -403,11 +426,11 @@ function OcrHighlightViewer({
   }
 
   return (
-    <div className="flex flex-col justify-between rounded-xl border border-[#254159] bg-[#07111E]/85 p-4">
+    <div className="flex flex-col justify-between rounded-xl border border-[#2A3238] bg-[#090B0D]/85 p-4">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <Highlighter className="size-4 text-[#45DDEB]" />
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+          <Highlighter className="size-4 text-[#D4FC36]" />
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
             OCR Text Highlight
           </p>
         </div>
@@ -420,7 +443,7 @@ function OcrHighlightViewer({
 
       <div
         ref={viewportRef}
-        className="relative flex w-full justify-center overflow-hidden rounded-lg border border-[#254159] bg-[#040B14] p-2"
+        className="relative flex w-full justify-center overflow-hidden rounded-lg border border-[#2A3238] bg-[#090B0D] p-2"
       >
         {screenshotPreviewUrl ? (
           <div
@@ -461,14 +484,14 @@ function OcrHighlightViewer({
                     className={cn(
                       "absolute cursor-pointer rounded transition-all",
                       isSelected
-                        ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 shadow-[0_0_20px_rgba(69,221,235,0.55)]"
-                        : "z-10 border border-[#34D399]/55 bg-[#34D399]/10 hover:border-[#45DDEB]"
+                        ? "z-20 border-2 border-[#D4FC36] bg-[#D4FC36]/20 shadow-[0_0_20px_rgba(212,252,54,0.35)]"
+                        : "z-10 border border-[#34D399]/55 bg-[#34D399]/10 hover:border-[#D4FC36]"
                     )}
                   >
                     {isSelected && (
                       <span
                         className={cn(
-                          "pointer-events-none absolute whitespace-nowrap rounded bg-[#07111E]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#45DDEB] shadow",
+                          "pointer-events-none absolute whitespace-nowrap rounded bg-[#090B0D]/95 px-1.5 py-0.5 font-mono text-[9px] font-bold text-[#D4FC36] shadow",
                           region.bbox.y < 85 ? "top-full mt-1" : "-top-5",
                           region.bbox.x > 680 ? "right-0" : "left-0"
                         )}
@@ -481,36 +504,40 @@ function OcrHighlightViewer({
               })}
           </div>
         ) : (
-          <div className="relative aspect-[16/10] w-full bg-[#050E19]">
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center font-mono text-[10px] tracking-wider text-[#8BA4C0]/40">
-              AREA FOTO SAMPUL DIABAIKAN • VERIFIKASI KLAIM TEKSTUAL SAJA
+          <div className="w-full">
+            <p className="mb-2 text-center font-mono text-[10px] tracking-wide text-[#8C989F]">
+              Area foto sampul diabaikan. Peta ini hanya menunjukkan posisi teks.
+            </p>
+            <div className="relative aspect-[16/10] w-full bg-[#090B0D]">
+              {regions.map((region) => {
+                const isSelected = activeRegion?.id === region.id;
+                return (
+                  <button
+                    key={region.id}
+                    type="button"
+                    onClick={() => onSelectRegion(region.id)}
+                    title={`${formatOcrRoleLabel(region.role)}: ${region.text}`}
+                    aria-label={`Sorot wilayah OCR ${formatOcrRoleLabel(region.role)}`}
+                    style={{
+                      left: `${(region.bbox.x / 10).toFixed(1)}%`,
+                      top: `${(region.bbox.y / 10).toFixed(1)}%`,
+                      width: `${(region.bbox.width / 10).toFixed(1)}%`,
+                      height: `${(region.bbox.height / 10).toFixed(1)}%`,
+                    }}
+                    className={cn(
+                      "absolute box-border flex min-h-0 cursor-pointer items-center overflow-hidden rounded px-1.5 text-left leading-none",
+                      isSelected
+                        ? "z-20 border-2 border-[#D4FC36] bg-[#1A2208] text-[#F3F4F5]"
+                        : "z-10 border border-[#2A3238] bg-[#15191C] text-[#8C989F] hover:border-[#D4FC36]/60"
+                    )}
+                  >
+                    <span className="truncate font-mono text-[10px] leading-none">
+                      {formatOcrMapLabel(region.role)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            {regions.map((region) => {
-              const isSelected = activeRegion?.id === region.id;
-              return (
-                <button
-                  key={region.id}
-                  type="button"
-                  onClick={() => onSelectRegion(region.id)}
-                  style={{
-                    left: `${(region.bbox.x / 10).toFixed(1)}%`,
-                    top: `${(region.bbox.y / 10).toFixed(1)}%`,
-                    width: `${(region.bbox.width / 10).toFixed(1)}%`,
-                    height: `${(region.bbox.height / 10).toFixed(1)}%`,
-                  }}
-                  className={cn(
-                    "absolute flex cursor-pointer items-center justify-start overflow-hidden rounded px-2 text-left transition-all",
-                    isSelected
-                      ? "z-20 border-2 border-[#45DDEB] bg-[#45DDEB]/20 text-[#F3F8FF] shadow-[0_0_18px_rgba(69,221,235,0.4)]"
-                      : "z-10 border border-[#254159] bg-[#0D2133]/75 text-[#8BA4C0] hover:border-[#45DDEB]/60"
-                  )}
-                >
-                  <span className="truncate font-mono text-[10px]">
-                    [{formatOcrRoleLabel(region.role)}] {region.text}
-                  </span>
-                </button>
-              );
-            })}
           </div>
         )}
       </div>
@@ -528,8 +555,8 @@ function OcrHighlightViewer({
                   className={cn(
                     "cursor-pointer rounded-md border px-2 py-1 font-mono text-[10px] transition-colors",
                     isSelected
-                      ? "border-[#45DDEB] bg-[#113148] text-[#45DDEB]"
-                      : "border-[#254159] bg-[#040B14] text-[#8BA4C0] hover:text-[#F3F8FF]"
+                      ? "border-[#D4FC36] bg-[#1C2226] text-[#D4FC36]"
+                      : "border-[#2A3238] bg-[#090B0D] text-[#8C989F] hover:text-[#F3F4F5]"
                   )}
                 >
                   {formatOcrRoleLabel(region.role)}
@@ -538,11 +565,11 @@ function OcrHighlightViewer({
             })}
           </div>
           {activeRegion && (
-            <div className="rounded-lg border border-[#45DDEB]/35 bg-[#040B14]/90 px-3 py-2 text-xs">
-              <span className="font-mono text-[10px] font-semibold uppercase text-[#45DDEB]">
+            <div className="rounded-lg border border-[#D4FC36]/35 bg-[#090B0D]/90 px-3 py-2 text-xs">
+              <span className="font-mono text-[10px] font-semibold uppercase text-[#D4FC36]">
                 {formatOcrRoleLabel(activeRegion.role)} TERPILIH:
               </span>
-              <p className="mt-0.5 text-[#F3F8FF]">{activeRegion.text}</p>
+              <p className="mt-0.5 text-[#F3F4F5]">{activeRegion.text}</p>
             </div>
           )}
         </div>
@@ -558,6 +585,7 @@ export function AnalysisResult({
   onTabChange,
 }: AnalysisResultProps) {
   const verdictStyle = getVerdictStyle(report.verdict.claimVerdict);
+  const claimReading = getClaimReading(report.verdict.claimVerdict);
   const VerdictIcon = verdictStyle.Icon;
 
   const ocrRegions = React.useMemo(
@@ -613,7 +641,7 @@ export function AnalysisResult({
     <div className="space-y-5">
       {report.isDemo && (
         <Alert variant="cyber" className="no-print">
-          <AlertTriangle className="size-4 text-[#45DDEB]" />
+          <AlertTriangle className="size-4 text-[#D4FC36]" />
           <AlertTitle>
             DEMO MODE — Fixture Data ({report.demoCategoryLabel || "Demo Case"})
           </AlertTitle>
@@ -625,36 +653,35 @@ export function AnalysisResult({
         </Alert>
       )}
 
+      {report.warnings.length > 0 && (
+        <Alert variant="warning" className="no-print">
+          <AlertTriangle className="size-4 text-verdict-mislead" />
+          <AlertTitle>Peringatan pada bukti ini</AlertTitle>
+          <AlertDescription>
+            <ul className="list-disc space-y-1 pl-4">
+              {report.warnings.map((warning, index) => (
+                <li key={`warn-${index}`}>{warning}</li>
+              ))}
+            </ul>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Dual Split Cards matching SOC Dashboard */}
       <div className="no-print grid gap-4 md:grid-cols-2">
         <Card className={cn("border", verdictStyle.borderClass)}>
           <CardContent className="flex flex-col justify-between gap-4 pt-5">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <div
-                  className={cn(
-                    "flex size-9 items-center justify-center rounded-lg border",
-                    verdictStyle.borderClass,
-                    verdictStyle.bgClass,
-                    verdictStyle.colorClass
-                  )}
-                >
-                  <VerdictIcon className="size-5" />
-                </div>
-                <div>
-                  <p className="font-heading text-base font-semibold text-[#F3F8FF]">
-                    Claim Assessment
-                  </p>
-                  <p className="font-mono text-[11px] text-[#8BA4C0]">
-                    {report.caseId}{" "}
-                    {report.isDemo ? "• DEMO FIXTURE" : "• LIVE EVIDENCE"}
-                  </p>
-                </div>
-              </div>
+              <p className="font-mono text-[11px] text-[#8C989F]">
+                {report.caseId}{" "}
+                {report.isDemo ? "• DEMO FIXTURE" : "• LIVE EVIDENCE"}
+              </p>
               <VerdictBadge verdict={report.verdict.claimVerdict} />
             </div>
 
-            <p className="text-sm font-medium leading-relaxed text-[#F3F8FF]">
+            <ClaimReading verdict={report.verdict.claimVerdict} />
+
+            <p className="text-sm font-medium leading-relaxed text-[#F3F4F5]">
               {report.claimExtraction.primaryClaim}
             </p>
 
@@ -672,7 +699,7 @@ export function AnalysisResult({
                 </div>
               )}
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#254159]/70 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#2A3238]/70 pt-3">
               <div
                 className={cn(
                   "inline-flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider",
@@ -682,7 +709,7 @@ export function AnalysisResult({
                 <VerdictIcon className="size-4" />
                 <span>{verdictStyle.shortCode}</span>
               </div>
-              <div className="flex items-center gap-2 text-xs text-[#8BA4C0]">
+              <div className="flex items-center gap-2 text-xs text-[#8C989F]">
                 <span>Sikap postingan:</span>
                 <PostStanceBadge stance={report.verdict.postStance} />
               </div>
@@ -690,7 +717,7 @@ export function AnalysisResult({
           </CardContent>
         </Card>
 
-        <Card className="border-[#254159]">
+        <Card className="border-[#2A3238]">
           <CardContent className="flex flex-col justify-between gap-4 pt-5">
             <div className="flex items-start justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -698,10 +725,10 @@ export function AnalysisResult({
                   <FileText className="size-5" />
                 </div>
                 <div>
-                  <p className="font-heading text-base font-semibold text-[#F3F8FF]">
+                  <p className="font-heading text-base font-semibold text-[#F3F4F5]">
                     Evidence Trail
                   </p>
-                  <p className="font-mono text-[11px] text-[#8BA4C0]">
+                  <p className="font-mono text-[11px] text-[#8C989F]">
                     {report.supportingEvidence.length} mendukung ·{" "}
                     {report.contradictingEvidence.length} membantah ·{" "}
                     {report.partialContextEvidence.length} konteks parsial ·{" "}
@@ -719,13 +746,13 @@ export function AnalysisResult({
                 variant="outline"
                 onClick={handlePrint}
               >
-                <Printer className="size-3.5 text-[#45DDEB]" />
+                <Printer className="size-3.5 text-[#D4FC36]" />
                 Print / PDF
               </Button>
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs leading-relaxed text-[#8BA4C0]">
+              <p className="text-xs leading-relaxed text-[#8C989F]">
                 {report.evidenceSources.some(
                   (source) => source.relation !== "irrelevant"
                 )
@@ -741,7 +768,7 @@ export function AnalysisResult({
                       href={source.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="rounded-md border border-[#254159] bg-[#0D2133] px-2 py-1 text-xs text-[#45DDEB] hover:border-[#45DDEB]/60"
+                      className="rounded-md border border-[#2A3238] bg-[#15191C] px-2 py-1 text-xs text-[#D4FC36] hover:border-[#D4FC36]/60"
                     >
                       {source.publisher} · {source.relation}
                     </a>
@@ -749,7 +776,7 @@ export function AnalysisResult({
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#254159]/70 pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#2A3238]/70 pt-3">
               {report.verdict.evidenceMetrics.officialOrFactCheckCount > 0 ? (
                 <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-[#34D399]">
                   <ShieldCheck className="size-4" />
@@ -757,12 +784,12 @@ export function AnalysisResult({
                   {report.verdict.evidenceMetrics.officialOrFactCheckCount})
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-[#45DDEB]">
+                <span className="inline-flex items-center gap-1.5 font-mono text-xs font-semibold tracking-wider text-[#D4FC36]">
                   <Clock className="size-4" />
                   INSUFFICIENT EVIDENCE • UNVERIFIED
                 </span>
               )}
-              <span className="font-mono text-xs text-[#8BA4C0]">
+              <span className="font-mono text-xs text-[#8C989F]">
                 {formatWibTimestamp(report.checkedAt)}
               </span>
             </div>
@@ -777,13 +804,13 @@ export function AnalysisResult({
           <AlertTitle>
             Pemisahan Klasifikasi Postingan vs Verdict Klaim Aktif
           </AlertTitle>
-          <AlertDescription className="text-[#F3F8FF]/90">
+          <AlertDescription className="text-[#F3F4F5]/90">
             Klaim faktual berstatus{" "}
             <strong className="text-[#F87171]">
               {report.verdict.claimVerdict}
             </strong>
             , sedangkan akun publik{" "}
-            <code className="font-mono text-[#45DDEB]">
+            <code className="font-mono text-[#D4FC36]">
               {report.claimExtraction.visibleAccountHandle || "pada screenshot"}
             </code>{" "}
             berperan{" "}
@@ -801,29 +828,25 @@ export function AnalysisResult({
         onValueChange={(v) => onTabChange?.(v as ResultViewTab)}
         className="space-y-4"
       >
-        <TabsList className="no-print w-full justify-start overflow-x-auto">
-          <TabsTrigger value="assessment">Analysis Result</TabsTrigger>
-          <TabsTrigger value="timeline">Evidence Timeline</TabsTrigger>
-          <TabsTrigger value="trace">Public Source Trace</TabsTrigger>
-          <TabsTrigger value="report">Case Report (Print/PDF)</TabsTrigger>
+        <TabsList className="no-print" aria-label="Bagian hasil">
+          <TabsTrigger value="assessment">Ringkasan</TabsTrigger>
+          <TabsTrigger value="evidence">Bukti</TabsTrigger>
+          <TabsTrigger value="timeline">Timeline</TabsTrigger>
+          <TabsTrigger value="trace">Jejak Publik</TabsTrigger>
+          <TabsTrigger value="report">Laporan</TabsTrigger>
         </TabsList>
 
         <TabsContent value="assessment" className="no-print space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <CardTitle>
-                  Analysis Result — Claim vs Stance &amp; Evidence
-                </CardTitle>
+                <CardTitle>Klaim, sikap postingan, dan teks yang terbaca</CardTitle>
                 <Badge variant="default">TEXT-FIRST NEWS VERIFICATION</Badge>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Mandatory Text-First Notice */}
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#45DDEB]/35 bg-[#0A1D2F] px-3.5 py-2.5 text-xs">
-                <span className="font-medium text-[#F3F8FF]">
-                  {verificationNotice}
-                </span>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="outline">
                     Topik: {report.claimExtraction.topicCategory}
@@ -873,22 +896,22 @@ export function AnalysisResult({
                       }
                     }}
                     className={cn(
-                      "rounded-lg border border-[#254159] bg-[#07111E]/80 p-4 transition-colors",
+                      "rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-4 transition-colors",
                       ocrRegions.some(
                         (r) =>
                           r.role === "headline" || r.role === "graphic_overlay"
-                      ) && "cursor-pointer hover:border-[#45DDEB]/65"
+                      ) && "cursor-pointer hover:border-[#D4FC36]/65"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
                         EXTRACTED HEADLINE
                       </p>
-                      <span className="font-mono text-[10px] text-[#8BA4C0]">
+                      <span className="font-mono text-[10px] text-[#8C989F]">
                         Teks Utama / Overlay Gambar
                       </span>
                     </div>
-                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#F3F8FF]">
+                    <p className="mt-2 text-sm font-semibold leading-relaxed text-[#F3F4F5]">
                       {extractedHeadline}
                     </p>
                     {graphicOverlays.length > 0 && (
@@ -921,13 +944,13 @@ export function AnalysisResult({
                       }
                     }}
                     className={cn(
-                      "rounded-lg border border-[#254159] bg-[#07111E]/80 p-4 transition-colors",
+                      "rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-4 transition-colors",
                       ocrRegions.some((r) => r.role === "caption") &&
-                        "cursor-pointer hover:border-[#45DDEB]/65"
+                        "cursor-pointer hover:border-[#D4FC36]/65"
                     )}
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
                         EXTRACTED CAPTION
                       </p>
                       <div className="flex flex-wrap gap-1.5">
@@ -941,7 +964,7 @@ export function AnalysisResult({
                         )}
                       </div>
                     </div>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F3F8FF]/90">
+                    <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-[#F3F4F5]/90">
                       {extractedCaption ||
                         "Tidak terdapat caption terpisah yang terbaca pada screenshot."}
                     </p>
@@ -952,10 +975,10 @@ export function AnalysisResult({
                       </div>
                     )}
                     <details className="mt-2.5">
-                      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-[#8BA4C0]">
+                      <summary className="cursor-pointer font-mono text-[10px] uppercase tracking-wider text-[#8C989F]">
                         Lihat Transkrip OCR Lengkap
                       </summary>
-                      <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#8BA4C0]">
+                      <p className="mt-1.5 whitespace-pre-wrap text-xs text-[#8C989F]">
                         {report.claimExtraction.extractedText}
                       </p>
                     </details>
@@ -974,15 +997,15 @@ export function AnalysisResult({
               </div>
 
               {/* 3. NORMALIZED FACTUAL CLAIMS */}
-              <div className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4">
+              <div className="rounded-xl border border-[#2A3238] bg-[#090B0D]/75 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Layers className="size-4 text-[#45DDEB]" />
-                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                    <Layers className="size-4 text-[#D4FC36]" />
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
                       NORMALIZED FACTUAL CLAIMS
                     </p>
                   </div>
-                  <span className="font-mono text-[11px] text-[#8BA4C0]">
+                  <span className="font-mono text-[11px] text-[#8C989F]">
                     Ekstraksi Proposisi Berbasis Teks (Tanpa Inferensi Foto)
                   </span>
                 </div>
@@ -992,10 +1015,10 @@ export function AnalysisResult({
                     {normalizedClaims.map((nc) => (
                       <div
                         key={nc.id}
-                        className="rounded-lg border border-[#254159]/90 bg-[#040B14]/80 p-3.5"
+                        className="rounded-lg border border-[#2A3238]/90 bg-[#090B0D]/80 p-3.5"
                       >
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-mono text-xs font-semibold text-[#45DDEB]">
+                          <span className="font-mono text-xs font-semibold text-[#D4FC36]">
                             {nc.id}
                           </span>
                           <div className="flex flex-wrap gap-1.5">
@@ -1007,21 +1030,21 @@ export function AnalysisResult({
                             )}
                           </div>
                         </div>
-                        <p className="mt-2 text-xs font-semibold text-[#F3F8FF]">
+                        <p className="mt-2 text-xs font-semibold text-[#F3F4F5]">
                           {nc.proposition}
                         </p>
-                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0]">
+                        <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 border-t border-[#2A3238]/50 pt-2 text-[11px] text-[#8C989F]">
                           <div>
                             <dt className="font-mono text-[10px] uppercase">
                               Subjek
                             </dt>
-                            <dd className="text-[#F3F8FF]/90">{nc.subject}</dd>
+                            <dd className="text-[#F3F4F5]/90">{nc.subject}</dd>
                           </div>
                           <div>
                             <dt className="font-mono text-[10px] uppercase">
                               Tindakan / Status
                             </dt>
-                            <dd className="text-[#F3F8FF]/90">
+                            <dd className="text-[#F3F4F5]/90">
                               {nc.predicateAction}
                             </dd>
                           </div>
@@ -1029,7 +1052,7 @@ export function AnalysisResult({
                             <dt className="font-mono text-[10px] uppercase">
                               Objek / Target
                             </dt>
-                            <dd className="text-[#F3F8FF]/90">
+                            <dd className="text-[#F3F4F5]/90">
                               {nc.objectTarget}
                             </dd>
                           </div>
@@ -1037,7 +1060,7 @@ export function AnalysisResult({
                             <dt className="font-mono text-[10px] uppercase">
                               Status Formal/Hukum
                             </dt>
-                            <dd className="text-[#F3F8FF]/90">
+                            <dd className="text-[#F3F4F5]/90">
                               {nc.legalOrAdministrativeStatus || "Tidak disebut"}
                             </dd>
                           </div>
@@ -1060,13 +1083,13 @@ export function AnalysisResult({
                           (nc.numericValues?.length ?? 0) > 0 ||
                           (nc.geographicContext?.length ?? 0) > 0 ||
                           (nc.requiredConditions?.length ?? 0) > 0) && (
-                          <dl className="mt-2 grid gap-1 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0]">
+                          <dl className="mt-2 grid gap-1 border-t border-[#2A3238]/50 pt-2 text-[11px] text-[#8C989F]">
                             {(nc.namedEntities?.length ?? 0) > 0 && (
                               <div>
                                 <dt className="inline font-mono text-[10px] uppercase">
                                   Entitas:
                                 </dt>{" "}
-                                <dd className="inline text-[#F3F8FF]/90">
+                                <dd className="inline text-[#F3F4F5]/90">
                                   {nc.namedEntities?.join(", ")}
                                 </dd>
                               </div>
@@ -1076,7 +1099,7 @@ export function AnalysisResult({
                                 <dt className="font-mono text-[10px] uppercase">
                                   Angka / satuan / kondisi
                                 </dt>
-                                <dd className="text-[#F3F8FF]/90">
+                                <dd className="text-[#F3F4F5]/90">
                                   {nc.numericValues
                                     ?.map(
                                       (value) =>
@@ -1091,7 +1114,7 @@ export function AnalysisResult({
                                 <dt className="inline font-mono text-[10px] uppercase">
                                   Geografi:
                                 </dt>{" "}
-                                <dd className="inline text-[#F3F8FF]/90">
+                                <dd className="inline text-[#F3F4F5]/90">
                                   {nc.geographicContext?.join(", ")}
                                 </dd>
                               </div>
@@ -1101,7 +1124,7 @@ export function AnalysisResult({
                                 <dt className="inline font-mono text-[10px] uppercase">
                                   Kondisi:
                                 </dt>{" "}
-                                <dd className="inline text-[#F3F8FF]/90">
+                                <dd className="inline text-[#F3F4F5]/90">
                                   {nc.requiredConditions?.join("; ")}
                                 </dd>
                               </div>
@@ -1109,7 +1132,7 @@ export function AnalysisResult({
                           </dl>
                         )}
                         {nc.semanticNote && (
-                          <p className="mt-2 rounded bg-[#0D2133] px-2 py-1 text-[11px] text-[#FBBF24]">
+                          <p className="mt-2 rounded bg-[#15191C] px-2 py-1 text-[11px] text-[#FBBF24]">
                             {nc.semanticNote}
                           </p>
                         )}
@@ -1117,25 +1140,25 @@ export function AnalysisResult({
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-2 text-xs text-[#8BA4C0]">
+                  <p className="mt-2 text-xs text-[#8C989F]">
                     Proposisi utama: {report.claimExtraction.primaryClaim}
                   </p>
                 )}
 
                 {report.verdict.atomicAssessments &&
                   report.verdict.atomicAssessments.length > 0 && (
-                    <div className="mt-4 border-t border-[#254159]/70 pt-3">
-                      <p className="font-mono text-[10px] uppercase tracking-wider text-[#8BA4C0]">
+                    <div className="mt-4 border-t border-[#2A3238]/70 pt-3">
+                      <p className="font-mono text-[10px] uppercase tracking-wider text-[#8C989F]">
                         Status Verifikasi Per Proposisi Atomik
                       </p>
                       <div className="mt-2 grid gap-2.5 md:grid-cols-2">
                         {report.verdict.atomicAssessments.map((item) => (
                           <div
                             key={item.id}
-                            className="rounded-lg border border-[#254159]/80 bg-[#040B14]/70 p-3"
+                            className="rounded-lg border border-[#2A3238]/80 bg-[#090B0D]/70 p-3"
                           >
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <span className="font-mono text-xs text-[#45DDEB]">
+                              <span className="font-mono text-xs text-[#D4FC36]">
                                 {item.id} · {item.label}
                               </span>
                               <Badge
@@ -1146,10 +1169,10 @@ export function AnalysisResult({
                                 {item.statusLabel}
                               </Badge>
                             </div>
-                            <p className="mt-1.5 text-xs font-medium text-[#F3F8FF]">
+                            <p className="mt-1.5 text-xs font-medium text-[#F3F4F5]">
                               {item.proposition}
                             </p>
-                            <p className="mt-1 text-[11px] text-[#8BA4C0]">
+                            <p className="mt-1 text-[11px] text-[#8C989F]">
                               {item.rationale}
                               {item.evidenceIds.length > 0
                                 ? ` (${item.evidenceIds.join(", ")})`
@@ -1163,18 +1186,18 @@ export function AnalysisResult({
               </div>
 
               {/* 4. FACT CHECK VERDICT */}
-              <div className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4">
+              <div className="rounded-xl border border-[#2A3238] bg-[#090B0D]/75 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
                     FACT CHECK VERDICT
                   </p>
                   <VerdictBadge verdict={report.verdict.claimVerdict} />
                 </div>
-                <p className="mt-2 text-sm leading-relaxed text-[#F3F8FF]">
+                <p className="mt-2 text-sm leading-relaxed text-[#F3F4F5]">
                   {report.verdict.explanation}
                 </p>
-                <p className="mt-2 text-xs text-[#8BA4C0]">
-                  <strong className="text-[#F3F8FF]">Sikap postingan:</strong>{" "}
+                <p className="mt-2 text-xs text-[#8C989F]">
+                  <strong className="text-[#F3F4F5]">Sikap postingan:</strong>{" "}
                   {report.verdict.postClassification} —{" "}
                   {report.claimExtraction.postStanceSummary}
                 </p>
@@ -1182,13 +1205,106 @@ export function AnalysisResult({
 
               <Separator />
 
-              {/* 5. EVIDENCE SOURCES */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-[#2A3238] bg-[#090B0D]/70 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-[#F3F4F5]">
+                    Bukti yang dibandingkan
+                  </p>
+                  <p className="mt-1 text-sm text-[#8C989F]">
+                    {report.supportingEvidence.length} mendukung ·{" "}
+                    {report.contradictingEvidence.length} membantah ·{" "}
+                    {report.partialContextEvidence.length} konteks parsial ·{" "}
+                    {(report.insufficientEvidence ??
+                      report.evidenceSources.filter(
+                        (source) => source.relation === "insufficient"
+                      )).length}{" "}
+                    belum cukup
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onTabChange?.("evidence")}
+                >
+                  Buka bukti
+                  <ArrowRight className="size-3.5" />
+                </Button>
+              </div>
+
+{/* 6 & 7 Quick Summary Cards: VERIFICATION TIMELINE & PUBLIC SOURCE TRACE */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-xl border border-[#2A3238] bg-[#090B0D]/70 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
+                      VERIFICATION TIMELINE
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onTabChange?.("timeline")}
+                      className="h-7 px-2 font-mono text-[11px] text-[#D4FC36]"
+                    >
+                      Buka timeline
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8C989F]">
+                    {report.publicOriginTrace.timeline.length} titik jejak
+                    kronologis tercatat (postingan teramati, sumber rujukan, &amp;
+                    audit AI).
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-[#2A3238] bg-[#090B0D]/70 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
+                      PUBLIC SOURCE TRACE
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onTabChange?.("trace")}
+                      className="h-7 px-2 font-mono text-[11px] text-[#D4FC36]"
+                    >
+                      Buka jejak
+                      <ArrowRight className="size-3" />
+                    </Button>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8C989F]">
+                    Platform: {report.publicOriginTrace.platform} · Handle:{" "}
+                    {report.publicOriginTrace.visibleAccountHandle ||
+                      "Tidak terlihat"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-[#2A3238] bg-[#090B0D]/70 p-4">
+                <p className="font-mono text-xs uppercase tracking-wider text-[#FBBF24]">
+                  Batasan Analisis (Clear Limitations)
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#8C989F]">
+                  {report.limitations.map((lim, idx) => (
+                    <li key={idx}>{lim}</li>
+                  ))}
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+                <TabsContent value="evidence" className="no-print space-y-4">
+          <Card>
+            <CardContent className="space-y-4 pt-6">
+{/* 5. EVIDENCE SOURCES */}
               <div className="space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
+                  <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#D4FC36]">
                     EVIDENCE SOURCES
                   </p>
-                  <span className="font-mono text-[11px] text-[#8BA4C0]">
+                  <span className="font-mono text-[11px] text-[#8C989F]">
                     {report.supportingEvidence.length} mendukung ·{" "}
                     {report.contradictingEvidence.length} membantah ·{" "}
                     {report.partialContextEvidence.length} konteks
@@ -1197,7 +1313,7 @@ export function AnalysisResult({
 
                 {report.evidenceSources.length === 0 ? (
                   <Alert variant="cyber">
-                    <ShieldAlert className="size-4 text-[#45DDEB]" />
+                    <ShieldAlert className="size-4 text-[#D4FC36]" />
                     <AlertTitle>
                       Bukti Tidak Mencukupi — Status UNVERIFIED
                     </AlertTitle>
@@ -1247,15 +1363,15 @@ export function AnalysisResult({
                         (source) => source.relation === "insufficient"
                       )
                     }
-                    accentClass="text-[#8BA4C0]"
+                    accentClass="text-[#8C989F]"
                   />
                 )}
 
                 {report.evidenceSources.some(
                   (s) => s.relation === "irrelevant"
                 ) && (
-                  <details className="rounded-xl border border-[#254159] bg-[#07111E]/65 p-4">
-                    <summary className="cursor-pointer font-mono text-xs font-semibold uppercase tracking-wider text-[#8BA4C0]">
+                  <details className="rounded-xl border border-[#2A3238] bg-[#090B0D]/65 p-4">
+                    <summary className="cursor-pointer font-mono text-xs font-semibold uppercase tracking-wider text-[#8C989F]">
                       Sumber Dikecualikan / Foto Sampul / Klarifikasi Lama (
                       {
                         report.evidenceSources.filter(
@@ -1270,10 +1386,10 @@ export function AnalysisResult({
                         .map((src) => (
                           <div
                             key={`excluded-${src.id}-${src.url}`}
-                            className="rounded-lg border border-[#254159]/70 bg-[#040B14]/70 p-3 text-xs text-[#8BA4C0]"
+                            className="rounded-lg border border-[#2A3238]/70 bg-[#090B0D]/70 p-3 text-xs text-[#8C989F]"
                           >
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-mono text-[#45DDEB]">
+                              <span className="font-mono text-[#D4FC36]">
                                 {src.id}
                               </span>
                               <SourceTierBadge tier={src.sourceTier} />
@@ -1293,7 +1409,7 @@ export function AnalysisResult({
                                 </Badge>
                               )}
                             </div>
-                            <p className="mt-1 font-medium text-[#F3F8FF]">
+                            <p className="mt-1 font-medium text-[#F3F4F5]">
                               {src.title}
                             </p>
                             <p className="mt-1">{src.rationale}</p>
@@ -1304,66 +1420,7 @@ export function AnalysisResult({
                 )}
               </div>
 
-              {/* 6 & 7 Quick Summary Cards: VERIFICATION TIMELINE & PUBLIC SOURCE TRACE */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
-                      VERIFICATION TIMELINE
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onTabChange?.("timeline")}
-                      className="h-7 px-2 font-mono text-[11px] text-[#45DDEB]"
-                    >
-                      Buka Timeline
-                      <ArrowRight className="size-3" />
-                    </Button>
-                  </div>
-                  <p className="mt-1.5 text-xs text-[#8BA4C0]">
-                    {report.publicOriginTrace.timeline.length} titik jejak
-                    kronologis tercatat (postingan teramati, sumber rujukan, &amp;
-                    audit AI).
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-[#45DDEB]">
-                      PUBLIC SOURCE TRACE
-                    </p>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => onTabChange?.("trace")}
-                      className="h-7 px-2 font-mono text-[11px] text-[#45DDEB]"
-                    >
-                      Buka Trace
-                      <ArrowRight className="size-3" />
-                    </Button>
-                  </div>
-                  <p className="mt-1.5 text-xs text-[#8BA4C0]">
-                    Platform: {report.publicOriginTrace.platform} · Handle:{" "}
-                    {report.publicOriginTrace.visibleAccountHandle ||
-                      "Tidak terlihat"}
-                  </p>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-[#254159] bg-[#07111E]/70 p-4">
-                <p className="font-mono text-xs uppercase tracking-wider text-[#FBBF24]">
-                  Batasan Analisis (Clear Limitations)
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#8BA4C0]">
-                  {report.limitations.map((lim, idx) => (
-                    <li key={idx}>{lim}</li>
-                  ))}
-                </ul>
-              </div>
-            </CardContent>
+                          </CardContent>
           </Card>
         </TabsContent>
 
@@ -1373,30 +1430,30 @@ export function AnalysisResult({
               <CardTitle>Evidence Timeline &amp; Chronological Audit</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <p className="text-xs text-[#8BA4C0]">
+              <p className="text-xs text-[#8C989F]">
                 Urutan kronologis peristiwa publik yang teramati pada
                 screenshot, publikasi klarifikasi/fact-check terindeks, dan
                 waktu pemeriksaan KLAIMSCAN AI.
               </p>
 
-              <ol className="relative ml-2 space-y-4 border-l border-[#254159] pl-6">
+              <ol className="relative ml-2 space-y-4 border-l border-[#2A3238] pl-6">
                 {report.publicOriginTrace.timeline.map((evt) => (
                   <li key={evt.id} className="relative">
                     <span
                       className={cn(
-                        "absolute -left-[29px] top-1 flex size-3 rounded-full border-2 border-[#07111E]",
+                        "absolute -left-[29px] top-1 flex size-3 rounded-full border-2 border-[#090B0D]",
                         evt.eventType === "official_statement"
                           ? "bg-[#34D399]"
                           : evt.eventType === "fact_check_prior"
-                            ? "bg-[#45DDEB]"
+                            ? "bg-[#D4FC36]"
                             : evt.eventType === "verification_run"
                               ? "bg-[#FBBF24]"
-                              : "bg-[#8BA4C0]"
+                              : "bg-[#8C989F]"
                       )}
                     />
-                    <div className="rounded-lg border border-[#254159] bg-[#07111E]/75 p-4">
+                    <div className="rounded-lg border border-[#2A3238] bg-[#090B0D]/75 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="font-mono text-xs text-[#45DDEB]">
+                        <span className="font-mono text-xs text-[#D4FC36]">
                           {evt.timestampLabel}
                         </span>
                         {evt.sourceUrl && (
@@ -1411,10 +1468,10 @@ export function AnalysisResult({
                           </a>
                         )}
                       </div>
-                      <p className="mt-1 font-heading text-sm font-semibold text-[#F3F8FF]">
+                      <p className="mt-1 font-heading text-sm font-semibold text-[#F3F4F5]">
                         {evt.title}
                       </p>
-                      <p className="mt-1 text-xs text-[#8BA4C0]">
+                      <p className="mt-1 text-xs text-[#8C989F]">
                         {evt.description}
                       </p>
                     </div>
@@ -1432,7 +1489,7 @@ export function AnalysisResult({
             </CardHeader>
             <CardContent className="space-y-5">
               <Alert variant="cyber">
-                <Lock className="size-4 text-[#45DDEB]" />
+                <Lock className="size-4 text-[#D4FC36]" />
                 <AlertTitle>Batasan Privasi &amp; Non-Atribusi</AlertTitle>
                 <AlertDescription className="space-y-1">
                   <p>{report.publicOriginTrace.privacyGuarantee}</p>
@@ -1443,34 +1500,34 @@ export function AnalysisResult({
               </Alert>
 
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-lg border border-[#254159] bg-[#07111E]/80 p-3">
-                  <span className="font-mono text-[10px] uppercase text-[#8BA4C0]">
+                <div className="rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-3">
+                  <span className="font-mono text-[10px] uppercase text-[#8C989F]">
                     Platform Terlihat
                   </span>
-                  <p className="mt-1 font-heading text-sm font-semibold text-[#F3F8FF]">
+                  <p className="mt-1 font-heading text-sm font-semibold text-[#F3F4F5]">
                     {report.publicOriginTrace.platform}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#254159] bg-[#07111E]/80 p-3">
-                  <span className="font-mono text-[10px] uppercase text-[#8BA4C0]">
+                <div className="rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-3">
+                  <span className="font-mono text-[10px] uppercase text-[#8C989F]">
                     Username / Handle Publik
                   </span>
-                  <p className="mt-1 font-mono text-sm text-[#45DDEB]">
+                  <p className="mt-1 font-mono text-sm text-[#D4FC36]">
                     {report.publicOriginTrace.visibleAccountHandle ||
                       "Tidak terlihat"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#254159] bg-[#07111E]/80 p-3">
-                  <span className="font-mono text-[10px] uppercase text-[#8BA4C0]">
+                <div className="rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-3">
+                  <span className="font-mono text-[10px] uppercase text-[#8C989F]">
                     Indikator Waktu Terlihat
                   </span>
-                  <p className="mt-1 font-mono text-sm text-[#F3F8FF]">
+                  <p className="mt-1 font-mono text-sm text-[#F3F4F5]">
                     {report.publicOriginTrace.visibleTimestamp ||
                       "Tidak tercantum"}
                   </p>
                 </div>
-                <div className="rounded-lg border border-[#254159] bg-[#07111E]/80 p-3">
-                  <span className="font-mono text-[10px] uppercase text-[#8BA4C0]">
+                <div className="rounded-lg border border-[#2A3238] bg-[#090B0D]/80 p-3">
+                  <span className="font-mono text-[10px] uppercase text-[#8C989F]">
                     URL Publik Terlihat
                   </span>
                   {report.publicOriginTrace.visiblePostUrl ? (
@@ -1478,12 +1535,12 @@ export function AnalysisResult({
                       href={report.publicOriginTrace.visiblePostUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-1 block truncate font-mono text-xs text-[#45DDEB] underline"
+                      className="mt-1 block truncate font-mono text-xs text-[#D4FC36] underline"
                     >
                       {report.publicOriginTrace.visiblePostUrl}
                     </a>
                   ) : (
-                    <p className="mt-1 font-mono text-xs text-[#8BA4C0]">
+                    <p className="mt-1 font-mono text-xs text-[#8C989F]">
                       Tidak terlihat pada screenshot
                     </p>
                   )}
@@ -1491,11 +1548,11 @@ export function AnalysisResult({
               </div>
 
               <div>
-                <h4 className="mb-2 font-heading text-sm font-semibold text-[#F3F8FF]">
+                <h4 className="mb-2 font-heading text-sm font-semibold text-[#F3F4F5]">
                   Sumber Resmi &amp; Pemeriksa Fakta Terobservasi
                 </h4>
                 {report.publicOriginTrace.clarificationSources.length === 0 ? (
-                  <p className="text-xs text-[#8BA4C0]">
+                  <p className="text-xs text-[#8C989F]">
                     Belum ada sumber klarifikasi publik terverifikasi yang
                     tercatat.
                   </p>
@@ -1507,17 +1564,17 @@ export function AnalysisResult({
                         href={s.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center justify-between rounded-lg border border-[#254159] bg-[#07111E]/75 p-3 hover:border-[#45DDEB]/60"
+                        className="flex items-center justify-between rounded-lg border border-[#2A3238] bg-[#090B0D]/75 p-3 hover:border-[#D4FC36]/60"
                       >
                         <div>
-                          <p className="text-xs font-semibold text-[#F3F8FF]">
+                          <p className="text-xs font-semibold text-[#F3F4F5]">
                             {s.publisher}
                           </p>
-                          <p className="font-mono text-[11px] text-[#45DDEB]">
+                          <p className="font-mono text-[11px] text-[#D4FC36]">
                             {s.url}
                           </p>
                         </div>
-                        <ExternalLink className="size-3.5 shrink-0 text-[#8BA4C0]" />
+                        <ExternalLink className="size-3.5 shrink-0 text-[#8C989F]" />
                       </a>
                     ))}
                   </div>
@@ -1535,18 +1592,18 @@ export function AnalysisResult({
             activeTab !== "report" ? "hidden print:block" : "block"
           )}
         >
-          <Card className="print-surface border-[#254159]">
-            <CardHeader className="border-b border-[#254159] pb-4">
+          <Card className="print-surface border-[#2A3238]">
+            <CardHeader className="border-b border-[#2A3238] pb-4">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <p className="font-mono text-xs uppercase tracking-widest text-[#45DDEB] print-muted">
+                  <p className="font-mono text-xs uppercase tracking-widest text-[#D4FC36] print-muted">
                     KLAIMSCAN AI • TEXT-FIRST AUDITABLE CASE REPORT{" "}
                     {report.isDemo ? "• DEMO FIXTURE" : ""}
                   </p>
                   <CardTitle className="mt-1 text-xl">
                     Laporan Investigasi Pemeriksaan Fakta
                   </CardTitle>
-                  <p className="mt-1 font-mono text-xs text-[#8BA4C0] print-muted">
+                  <p className="mt-1 font-mono text-xs text-[#8C989F] print-muted">
                     Case ID: {report.caseId} · Timestamp Analisis:{" "}
                     {formatWibTimestamp(report.checkedAt)}
                   </p>
@@ -1564,27 +1621,29 @@ export function AnalysisResult({
             </CardHeader>
 
             <CardContent className="space-y-5 pt-5">
-              <div className="rounded-lg border border-[#45DDEB]/40 p-3 text-xs font-medium print-surface">
+              <div className="rounded-lg border border-[#D4FC36]/40 p-3 text-xs font-medium print-surface">
                 {verificationNotice}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-[#254159] p-4 print-surface">
-                  <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+                <div className="rounded-lg border border-[#2A3238] p-4 print-surface">
+                  <p className="font-mono text-[11px] uppercase text-[#8C989F] print-muted">
                     Klaim Tekstual &amp; Verdict Faktual
                   </p>
-                  <p className="mt-1 font-heading text-lg font-bold">
-                    {report.verdict.claimVerdict} (
-                    {report.verdict.verdictLabelId})
+                  <p className="mt-1 font-heading text-3xl font-medium">
+                    {claimReading.title}
+                  </p>
+                  <p className="mt-1 font-mono text-xs text-[#8C989F] print-muted">
+                    {report.verdict.claimVerdict}
                   </p>
                   <p className="mt-2 text-sm">
                     {report.claimExtraction.primaryClaim}
                   </p>
-                  <p className="mt-2 text-xs text-[#8BA4C0] print-muted">
+                  <p className="mt-2 text-xs text-[#8C989F] print-muted">
                     <strong>Headline:</strong> {extractedHeadline}
                   </p>
                   {extractedCaption && (
-                    <p className="mt-1 text-xs text-[#8BA4C0] print-muted">
+                    <p className="mt-1 text-xs text-[#8C989F] print-muted">
                       <strong>Caption:</strong> {extractedCaption}
                     </p>
                   )}
@@ -1603,14 +1662,14 @@ export function AnalysisResult({
                     )}
                 </div>
 
-                <div className="rounded-lg border border-[#254159] p-4 print-surface">
-                  <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+                <div className="rounded-lg border border-[#2A3238] p-4 print-surface">
+                  <p className="font-mono text-[11px] uppercase text-[#8C989F] print-muted">
                     Post Stance &amp; Public Trace
                   </p>
                   <p className="mt-1 font-heading text-lg font-bold">
                     {report.verdict.postClassification}
                   </p>
-                  <p className="mt-2 font-mono text-xs text-[#8BA4C0] print-muted">
+                  <p className="mt-2 font-mono text-xs text-[#8C989F] print-muted">
                     Platform: {report.publicOriginTrace.platform} · Akun:{" "}
                     {report.publicOriginTrace.visibleAccountHandle ||
                       "Tidak terlihat"}{" "}
@@ -1618,22 +1677,22 @@ export function AnalysisResult({
                     {report.publicOriginTrace.visibleTimestamp || "N/A"}
                   </p>
                   {report.publicOriginTrace.visiblePostUrl && (
-                    <p className="mt-1 break-all font-mono text-[11px] text-[#45DDEB] print-muted">
+                    <p className="mt-1 break-all font-mono text-[11px] text-[#D4FC36] print-muted">
                       URL terlihat: {report.publicOriginTrace.visiblePostUrl}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="rounded-lg border border-[#254159] p-4 print-surface">
-                <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+              <div className="rounded-lg border border-[#2A3238] p-4 print-surface">
+                <p className="font-mono text-[11px] uppercase text-[#8C989F] print-muted">
                   Penjelasan &amp; Ringkasan Bukti
                 </p>
                 <p className="mt-2 text-sm leading-relaxed">
                   {report.verdict.explanation}
                 </p>
                 {report.analystNotes && (
-                  <p className="mt-2 border-t border-[#254159]/50 pt-2 text-xs text-[#8BA4C0] print-muted">
+                  <p className="mt-2 border-t border-[#2A3238]/50 pt-2 text-xs text-[#8C989F] print-muted">
                     <strong>Catatan Analis:</strong> {report.analystNotes}
                   </p>
                 )}
@@ -1641,21 +1700,21 @@ export function AnalysisResult({
 
               {report.verdict.atomicAssessments &&
                 report.verdict.atomicAssessments.length > 0 && (
-                  <div className="rounded-lg border border-[#254159] p-4 print-surface">
-                    <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+                  <div className="rounded-lg border border-[#2A3238] p-4 print-surface">
+                    <p className="font-mono text-[11px] uppercase text-[#8C989F] print-muted">
                       Rincian Proposisi Atomik &amp; Aspek Verifikasi
                     </p>
                     <div className="mt-2 space-y-2">
                       {report.verdict.atomicAssessments.map((item) => (
                         <div
                           key={`print-ac-${item.id}`}
-                          className="border-b border-[#254159]/40 pb-2 text-xs last:border-b-0 last:pb-0"
+                          className="border-b border-[#2A3238]/40 pb-2 text-xs last:border-b-0 last:pb-0"
                         >
                           <div className="font-semibold">
                             [{item.id}] {item.label}: {item.statusLabel}
                           </div>
                           <div>{item.proposition}</div>
-                          <div className="text-[11px] text-[#8BA4C0] print-muted">
+                          <div className="text-[11px] text-[#8C989F] print-muted">
                             {item.rationale}
                           </div>
                         </div>
@@ -1683,7 +1742,7 @@ export function AnalysisResult({
                   </div>
                 </div>
                 {report.evidenceSources.length === 0 ? (
-                  <p className="text-sm text-[#8BA4C0] print-muted">
+                  <p className="text-sm text-[#8C989F] print-muted">
                     Tidak ditemukan sumber bukti terverifikasi yang memadai;
                     verdict ditetapkan sebagai UNVERIFIED.
                   </p>
@@ -1706,33 +1765,33 @@ export function AnalysisResult({
                           <TableCell className="font-mono text-xs">
                             <div>{src.relation}</div>
                             {src.targetAspect && (
-                              <div className="text-[11px] text-[#8BA4C0] print-muted">
+                              <div className="text-[11px] text-[#8C989F] print-muted">
                                 {src.targetAspect}
                               </div>
                             )}
                             {src.temporalStatus &&
                               src.temporalStatus !== "unclear" && (
-                                <div className="text-[11px] text-[#8BA4C0] print-muted">
+                                <div className="text-[11px] text-[#8C989F] print-muted">
                                   {src.temporalStatus}
                                 </div>
                               )}
                           </TableCell>
                           <TableCell className="text-xs">
                             <div className="font-medium">{src.publisher}</div>
-                            <div className="font-mono text-[11px] text-[#8BA4C0] print-muted">
+                            <div className="font-mono text-[11px] text-[#8C989F] print-muted">
                               {src.publishedAt || "Tgl tidak tercantum"}
                             </div>
                           </TableCell>
                           <TableCell className="text-xs">
                             <div className="font-medium">{src.title}</div>
-                            <div className="mt-0.5 text-[11px] text-[#8BA4C0] print-muted">
+                            <div className="mt-0.5 text-[11px] text-[#8C989F] print-muted">
                               Klaim: {src.claimEvaluated}
                             </div>
                             <a
                               href={src.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="mt-0.5 block break-all font-mono text-[11px] text-[#45DDEB] underline"
+                              className="mt-0.5 block break-all font-mono text-[11px] text-[#D4FC36] underline"
                             >
                               {src.url}
                             </a>
@@ -1744,23 +1803,23 @@ export function AnalysisResult({
                 )}
               </div>
 
-              <div className="rounded-lg border border-[#254159] p-4 print-surface">
-                <p className="font-mono text-[11px] uppercase text-[#8BA4C0] print-muted">
+              <div className="rounded-lg border border-[#2A3238] p-4 print-surface">
+                <p className="font-mono text-[11px] uppercase text-[#8C989F] print-muted">
                   Batasan Metodologi, Jejak Publik &amp; Privasi (Clear Limitations)
                 </p>
                 <p className="mt-2 text-xs text-[#FBBF24] print-muted">
                   {report.publicOriginTrace.attributionCaveat}
                 </p>
-                <p className="mt-1 text-xs text-[#8BA4C0] print-muted">
+                <p className="mt-1 text-xs text-[#8C989F] print-muted">
                   {report.publicOriginTrace.privacyGuarantee}
                 </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#8BA4C0] print-muted">
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-[#8C989F] print-muted">
                   {report.limitations.map((item, idx) => (
                     <li key={idx}>{item}</li>
                   ))}
                 </ul>
                 {report.warnings.length > 0 && (
-                  <ul className="mt-2 border-t border-[#254159]/50 pt-2 text-[11px] text-[#8BA4C0] print-muted">
+                  <ul className="mt-2 border-t border-[#2A3238]/50 pt-2 text-[11px] text-[#8C989F] print-muted">
                     {report.warnings.map((warn, idx) => (
                       <li key={idx}>Catatan Sistem: {warn}</li>
                     ))}
@@ -1768,7 +1827,7 @@ export function AnalysisResult({
                 )}
               </div>
 
-              <div className="rounded-lg border border-[#254159] p-3 font-mono text-[11px] text-[#8BA4C0] print-surface print-muted">
+              <div className="rounded-lg border border-[#2A3238] p-3 font-mono text-[11px] text-[#8C989F] print-surface print-muted">
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
                   <span className="inline-flex items-center gap-1">
                     <Fingerprint className="size-3.5" />

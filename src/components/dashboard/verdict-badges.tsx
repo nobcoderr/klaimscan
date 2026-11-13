@@ -50,10 +50,10 @@ export function getVerdictStyle(verdict: ClaimVerdict) {
       };
     case "OUTDATED":
       return {
-        badgeVariant: "warning" as const,
-        colorClass: "text-[#FBBF24]",
-        borderClass: "border-[#FBBF24]/40",
-        bgClass: "bg-[#FBBF24]/10",
+        badgeVariant: "outdated" as const,
+        colorClass: "text-verdict-outdated",
+        borderClass: "border-verdict-outdated/40",
+        bgClass: "bg-verdict-outdated/10",
         shortCode: "OUTDATED • KEDALUWARSA",
         displayLabel: "OUTDATED (Kedaluwarsa)",
         Icon: Clock3,
@@ -61,10 +61,10 @@ export function getVerdictStyle(verdict: ClaimVerdict) {
     case "UNVERIFIED":
     default:
       return {
-        badgeVariant: "default" as const,
-        colorClass: "text-[#45DDEB]",
-        borderClass: "border-[#45DDEB]/40",
-        bgClass: "bg-[#45DDEB]/10",
+        badgeVariant: "unverified" as const,
+        colorClass: "text-verdict-open",
+        borderClass: "border-verdict-open/40",
+        bgClass: "bg-verdict-open/10",
         shortCode: "UNVERIFIED • BELUM TERVERIFIKASI",
         displayLabel: "UNVERIFIED (Belum Terverifikasi)",
         Icon: HelpCircle,
@@ -79,6 +79,100 @@ export function VerdictBadge({ verdict }: { verdict: ClaimVerdict }) {
       <Icon className="size-3.5" />
       <span>{displayLabel}</span>
     </Badge>
+  );
+}
+
+const CLAIM_READINGS = [
+  {
+    verdict: "FALSE" as const,
+    title: "Hoaks",
+    line: "Sumber yang selaras membantah klaim. Status ini tidak dipakai hanya karena bukti belum ditemukan.",
+  },
+  {
+    verdict: "TRUE" as const,
+    title: "Valid",
+    line: "Sumber yang selaras mendukung klaim yang diuji.",
+  },
+  {
+    verdict: "UNVERIFIED" as const,
+    title: "Butuh verifikasi",
+    line: "Bukti yang ada belum cukup untuk menyebut klaim ini hoaks atau valid.",
+  },
+  {
+    verdict: "MISLEADING" as const,
+    title: "Menyesatkan",
+    line: "Sebagian muatan punya jejak, tetapi keseluruhan klaim menyesatkan. Ini bukan hoaks utuh dan bukan valid.",
+  },
+  {
+    verdict: "OUTDATED" as const,
+    title: "Kedaluwarsa",
+    line: "Klaim merujuk peristiwa atau status yang sudah tidak berlaku. Ini bukan hoaks baru dan bukan valid untuk saat ini.",
+  },
+];
+
+const PRIMARY_READINGS = CLAIM_READINGS.filter((item) =>
+  item.verdict === "FALSE" || item.verdict === "TRUE" || item.verdict === "UNVERIFIED"
+);
+
+export function getClaimReading(verdict: ClaimVerdict) {
+  return (
+    CLAIM_READINGS.find((item) => item.verdict === verdict) ??
+    CLAIM_READINGS[2]
+  );
+}
+
+export function ClaimReading({ verdict }: { verdict: ClaimVerdict }) {
+  const reading = getClaimReading(verdict);
+  const style = getVerdictStyle(verdict);
+  const primary = PRIMARY_READINGS.some((item) => item.verdict === verdict);
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <p className="font-mono text-[11px] tracking-[0.16em] text-muted-foreground">
+          BACAAN KLAIM
+        </p>
+        <p
+          className={`mt-1 font-heading text-4xl font-medium tracking-tight ${style.colorClass}`}
+        >
+          {reading.title}
+        </p>
+        <p className="mt-2 max-w-xl font-sans text-sm leading-relaxed text-muted-foreground">
+          {reading.line}
+        </p>
+      </div>
+      <div
+        className="grid grid-cols-3 gap-px border border-border bg-border"
+        role="list"
+        aria-label="Tiga bacaan utama"
+      >
+        {PRIMARY_READINGS.map((item) => {
+          const active = item.verdict === verdict;
+          const lane = getVerdictStyle(item.verdict);
+          return (
+            <div
+              key={item.verdict}
+              role="listitem"
+              aria-current={active ? "true" : undefined}
+              className={`bg-card px-3 py-3 ${active ? lane.colorClass : "text-muted-foreground"}`}
+            >
+              <p className="font-heading text-lg font-medium leading-none">
+                {item.title}
+              </p>
+              <p className="mt-2 font-mono text-[10px] tracking-[0.12em]">
+                {active ? "BACAAN INI" : "—"}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      {!primary && (
+        <p className="font-sans text-sm leading-relaxed text-foreground">
+          Bacaan ini berdiri sendiri. Klaim tidak digolongkan sebagai hoaks,
+          valid, atau butuh verifikasi.
+        </p>
+      )}
+    </div>
   );
 }
 

@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   FileImage,
   Loader2,
-  Lock,
   ScanLine,
   Sparkles,
   Upload,
@@ -38,74 +37,14 @@ const ACCEPTED_EXTENSIONS = /\.(png|jpe?g|webp)$/i;
 
 const MAX_UPLOAD_BYTES = 4 * 1024 * 1024; // 4 MB (menjaga body multipart < 4.5 MB batas Vercel)
 
-function createSamplePngFile(): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = 960;
-    canvas.height = 540;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      reject(new Error("Canvas tidak tersedia"));
-      return;
-    }
-
-    ctx.fillStyle = "#0F172A";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-    ctx.fillStyle = "#1E293B";
-    ctx.fillRect(48, 44, 864, 452);
-    ctx.strokeStyle = "#334155";
-    ctx.lineWidth = 2;
-    ctx.strokeRect(48, 44, 864, 452);
-
-    ctx.fillStyle = "#38BDF8";
-    ctx.font = "bold 24px sans-serif";
-    ctx.fillText("@vereditum • Klarifikasi Fakta", 88, 108);
-
-    ctx.fillStyle = "#94A3B8";
-    ctx.font = "18px sans-serif";
-    ctx.fillText("Instagram • 3 jam lalu", 88, 140);
-
-    ctx.fillStyle = "#EF4444";
-    ctx.fillRect(88, 175, 220, 42);
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 20px sans-serif";
-    ctx.fillText("HOAKS / KLARIFIKASI", 102, 203);
-
-    ctx.fillStyle = "#F8FAFC";
-    ctx.font = "bold 32px sans-serif";
-    ctx.fillText("SIM Seumur Hidup Gratis Tanpa Perpanjangan", 88, 272);
-
-    ctx.fillStyle = "#CBD5E1";
-    ctx.font = "22px sans-serif";
-    ctx.fillText(
-      "TIDAK BENAR. Korlantas Polri menegaskan masa berlaku SIM",
-      88,
-      328
-    );
-    ctx.fillText(
-      "tetap 5 tahun sesuai UU No. 22 Tahun 2009 tentang LLAJ.",
-      88,
-      364
-    );
-
-    ctx.fillStyle = "#34D399";
-    ctx.font = "18px monospace";
-    ctx.fillText(
-      "Sumber: korlantas.polri.go.id | Sample Uji KLAIMSCAN AI",
-      88,
-      444
-    );
-
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        reject(new Error("Gagal membuat sample PNG"));
-        return;
-      }
-      resolve(
-        new File([blob], "sample-vereditum-sim.png", { type: "image/png" })
-      );
-    }, "image/png");
+async function loadSampleScreenshot(): Promise<File> {
+  const response = await fetch("/demo/vereditum-sim.jpg");
+  if (!response.ok) {
+    throw new Error("Sample tidak tersedia");
+  }
+  const blob = await response.blob();
+  return new File([blob], "vereditum-sim.jpg", {
+    type: blob.type || "image/jpeg",
   });
 }
 
@@ -189,7 +128,7 @@ export function DropzoneScanner({
 
   const loadGeneratedSample = async () => {
     try {
-      const sampleFile = await createSamplePngFile();
+      const sampleFile = await loadSampleScreenshot();
       handleFileSelection(sampleFile);
       toast.success("Sample screenshot @vereditum siap diuji.");
     } catch {
@@ -304,19 +243,12 @@ export function DropzoneScanner({
   const progressValue = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <Card className="border-[#254159] bg-[#0D2133]/90">
-      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-[#254159]/70 pb-4">
-        <div>
-          <CardTitle className="text-lg">New Intelligence Analysis</CardTitle>
-          <p className="mt-1 text-xs text-[#8BA4C0]">
-            Unggah screenshot postingan media sosial (PNG, JPG, WEBP maks. 4 MB)
-            untuk ekstraksi OCR teks berita/caption, penelusuran web langsung,
-            dan verifikasi klaim teks tanpa menilai keaslian foto sampul.
-          </p>
-        </div>
-        <span className="font-mono text-xs tracking-widest text-[#45DDEB]">
-          IMAGE INPUT
-        </span>
+    <Card className="border-[#2A3238] bg-[#15191C]/90">
+      <CardHeader className="border-b border-border pb-4">
+        <CardTitle>Unggah screenshot</CardTitle>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          PNG, JPG, atau WEBP. Maksimal 4 MB.
+        </p>
       </CardHeader>
 
       <CardContent className="space-y-4 pt-5">
@@ -365,21 +297,23 @@ export function DropzoneScanner({
             onDragLeave={() => setIsDragging(false)}
             onDrop={handleDrop}
             className={cn(
-              "group relative flex min-h-[220px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-8 text-center transition-all",
+              "group relative flex min-h-[220px] cursor-pointer flex-col items-center justify-center border border-dashed px-6 py-10 text-center transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
               isDragging
-                ? "border-[#45DDEB] bg-[#45DDEB]/10"
-                : "border-[#254159] bg-[#07111E]/60 hover:border-[#45DDEB]/65 hover:bg-[#0A192A]"
+                ? "border-primary bg-primary/10"
+                : "border-border bg-background hover:border-primary/70"
             )}
           >
-            <div className="mb-3 flex size-12 items-center justify-center rounded-xl border border-[#45DDEB]/30 bg-[#0D2133] text-[#45DDEB] transition-transform group-hover:scale-105">
+            <div className="mb-4 flex size-12 items-center justify-center border border-primary/40 text-primary">
               <ScanLine className="size-6" />
             </div>
-            <p className="font-heading text-lg font-semibold text-[#F3F8FF]">
-              Drop screenshot to analyze
+            <p className="font-heading text-xl font-semibold text-foreground">
+              Letakkan screenshot di sini
             </p>
-            <p className="mt-1 text-xs text-[#8BA4C0]">
-              Instagram • TikTok • Facebook • WhatsApp • Format PNG, JPG, WEBP
-              (Maks. 4 MB)
+            <p className="mt-2 text-sm text-muted-foreground">
+              Instagram, TikTok, Facebook, WhatsApp
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              PNG, JPG, atau WEBP. Maksimal 4 MB.
             </p>
             <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
               <Button
@@ -390,7 +324,7 @@ export function DropzoneScanner({
                 }}
               >
                 <Upload className="size-4" />
-                SELECT SCREENSHOT
+                Pilih screenshot
               </Button>
               <Button
                 type="button"
@@ -400,7 +334,7 @@ export function DropzoneScanner({
                   void loadGeneratedSample();
                 }}
               >
-                <FileImage className="size-4 text-[#45DDEB]" />
+                <FileImage className="size-4 text-[#D4FC36]" />
                 Muat Sample Uji
               </Button>
             </div>
@@ -408,7 +342,7 @@ export function DropzoneScanner({
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
-              <div className="relative overflow-hidden rounded-xl border border-[#254159] bg-[#07111E]">
+              <div className="relative overflow-hidden rounded-xl border border-[#2A3238] bg-[#090B0D]">
                 <Image
                   src={previewUrl}
                   alt="Preview screenshot yang akan dianalisis"
@@ -421,16 +355,16 @@ export function DropzoneScanner({
                 {isAnalyzing && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 bg-[#07111E]/25"
+                    className="pointer-events-none absolute inset-0 bg-[#090B0D]/25"
                   >
-                    <div className="animate-scan-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#45DDEB] to-transparent shadow-[0_0_18px_#45DDEB]" />
+                    <div className="animate-scan-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#D4FC36] to-transparent shadow-[0_0_18px_#D4FC36]" />
                   </div>
                 )}
 
-                <div className="flex items-center justify-between border-t border-[#254159] bg-[#0A1826]/95 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between border-t border-[#2A3238] bg-[#15191C]/95 px-3 py-2 text-xs">
                   <div className="flex items-center gap-2 truncate">
-                    <FileImage className="size-3.5 shrink-0 text-[#45DDEB]" />
-                    <span className="truncate font-mono text-[#F3F8FF]">
+                    <FileImage className="size-3.5 shrink-0 text-[#D4FC36]" />
+                    <span className="truncate font-mono text-[#F3F4F5]">
                       {selectedFile?.name}
                     </span>
                     <Badge variant="secondary">
@@ -456,9 +390,9 @@ export function DropzoneScanner({
               <div className="space-y-1.5">
                 <label
                   htmlFor="analyst-notes"
-                  className="font-mono text-xs uppercase tracking-wider text-[#8BA4C0]"
+                  className="text-sm text-muted-foreground"
                 >
-                  Konteks Analis (Opsional)
+                  Catatan analis, opsional
                 </label>
                 <Textarea
                   id="analyst-notes"
@@ -480,12 +414,12 @@ export function DropzoneScanner({
                   {isAnalyzing ? (
                     <>
                       <Loader2 className="size-4 animate-spin" />
-                      MEMINDAI &amp; VERIFIKASI...
+                      Memeriksa klaim...
                     </>
                   ) : (
                     <>
                       <ScanLine className="size-4" />
-                      JALANKAN ANALISIS AI
+                      Periksa klaim ini
                     </>
                   )}
                 </Button>
@@ -500,12 +434,17 @@ export function DropzoneScanner({
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#254159] bg-[#07111E]/75 p-4">
+            <div
+              className="rounded-md border border-border bg-background p-4"
+              aria-live="polite"
+              aria-busy={isAnalyzing}
+              aria-label="Progres pemeriksaan"
+            >
               <div className="mb-3 flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#45DDEB]">
-                  Pipeline Verifikasi (01–06)
+                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#D4FC36]">
+                  Langkah pemeriksaan
                 </span>
-                <span className="font-mono text-xs text-[#8BA4C0]">
+                <span className="font-mono text-xs text-[#8C989F]">
                   {progressValue}%
                 </span>
               </div>
@@ -520,25 +459,25 @@ export function DropzoneScanner({
                       step.status === "completed" &&
                         "border-[#34D399]/35 bg-[#34D399]/6",
                       step.status === "active" &&
-                        "border-[#45DDEB]/60 bg-[#45DDEB]/10",
+                        "border-[#D4FC36]/60 bg-[#D4FC36]/10",
                       step.status === "error" &&
                         "border-[#F87171]/50 bg-[#F87171]/10",
                       step.status === "pending" &&
-                        "border-[#254159]/60 bg-[#0D2133]/40"
+                        "border-[#2A3238]/60 bg-[#15191C]/40"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-semibold text-[#F3F8FF]">
+                      <span className="font-mono font-semibold text-[#F3F4F5]">
                         {step.code} — {step.label}
                       </span>
                       {step.status === "completed" && (
                         <CheckCircle2 className="size-3.5 shrink-0 text-[#34D399]" />
                       )}
                       {step.status === "active" && (
-                        <Loader2 className="size-3.5 shrink-0 animate-spin text-[#45DDEB]" />
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-[#D4FC36]" />
                       )}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-[#8BA4C0]">
+                    <p className="mt-0.5 text-[11px] text-[#8C989F]">
                       {step.detail || step.description}
                     </p>
                   </li>
@@ -546,8 +485,8 @@ export function DropzoneScanner({
               </ol>
 
               {isAnalyzing && (
-                <div className="mt-4 space-y-2 rounded-lg border border-[#45DDEB]/30 bg-[#0D2133]/70 p-3">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-[#45DDEB]">
+                <div className="mt-4 space-y-2 rounded-lg border border-[#D4FC36]/30 bg-[#15191C]/70 p-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-[#D4FC36]">
                     Menyusun Berkas Investigasi...
                   </p>
                   <Skeleton className="h-3 w-4/5" />
@@ -567,16 +506,9 @@ export function DropzoneScanner({
           </Alert>
         )}
 
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs text-[#8BA4C0]">
-          <span className="inline-flex items-center gap-1.5">
-            <Lock className="size-3.5 text-[#34D399]" />
-            Server-side validation · Metadata stripped · Tanpa penyimpanan
-            permanen
-          </span>
-          <span className="font-mono text-[11px] text-[#8BA4C0]/80">
-            Maks. 4 MB • Zero private IP tracking
-          </span>
-        </div>
+        <p className="text-xs text-muted-foreground">
+          Maksimal 4 MB. Tidak melacak IP pribadi.
+        </p>
       </CardContent>
     </Card>
   );
