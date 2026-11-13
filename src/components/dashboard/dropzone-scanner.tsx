@@ -243,7 +243,7 @@ export function DropzoneScanner({
   const progressValue = Math.round((completedCount / steps.length) * 100);
 
   return (
-    <Card className="border-[#2A3238] bg-[#15191C]/90">
+    <Card className="border-border bg-card/90">
       <CardHeader className="border-b border-border pb-4">
         <CardTitle>Unggah screenshot</CardTitle>
         <p className="text-sm leading-relaxed text-muted-foreground">
@@ -254,7 +254,7 @@ export function DropzoneScanner({
       <CardContent className="space-y-4 pt-5">
         {!serverConfig.openAiConfigured && (
           <Alert variant="warning">
-            <Sparkles className="size-4 text-[#FBBF24]" />
+            <Sparkles className="size-4 text-verdict-mislead" />
             <AlertTitle>
               DEMO MODE Aktif — OPENAI_API_KEY Belum Diisi
             </AlertTitle>
@@ -334,7 +334,7 @@ export function DropzoneScanner({
                   void loadGeneratedSample();
                 }}
               >
-                <FileImage className="size-4 text-[#D4FC36]" />
+                <FileImage className="size-4 text-primary" />
                 Muat Sample Uji
               </Button>
             </div>
@@ -342,7 +342,7 @@ export function DropzoneScanner({
         ) : (
           <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-3">
-              <div className="relative overflow-hidden rounded-xl border border-[#2A3238] bg-[#090B0D]">
+              <div className="relative overflow-hidden rounded-xl border border-border bg-background">
                 <Image
                   src={previewUrl}
                   alt="Preview screenshot yang akan dianalisis"
@@ -355,16 +355,16 @@ export function DropzoneScanner({
                 {isAnalyzing && (
                   <div
                     aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 bg-[#090B0D]/25"
+                    className="pointer-events-none absolute inset-0 bg-background/25"
                   >
-                    <div className="animate-scan-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#D4FC36] to-transparent shadow-[0_0_18px_#D4FC36]" />
+                    <div className="animate-scan-line absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-primary to-transparent shadow-sm" />
                   </div>
                 )}
 
-                <div className="flex items-center justify-between border-t border-[#2A3238] bg-[#15191C]/95 px-3 py-2 text-xs">
+                <div className="flex items-center justify-between border-t border-border bg-card/95 px-3 py-2 text-xs">
                   <div className="flex items-center gap-2 truncate">
-                    <FileImage className="size-3.5 shrink-0 text-[#D4FC36]" />
-                    <span className="truncate font-mono text-[#F3F4F5]">
+                    <FileImage className="size-3.5 shrink-0 text-primary" />
+                    <span className="truncate font-mono text-foreground">
                       {selectedFile?.name}
                     </span>
                     <Badge variant="secondary">
@@ -441,10 +441,10 @@ export function DropzoneScanner({
               aria-label="Progres pemeriksaan"
             >
               <div className="mb-3 flex items-center justify-between">
-                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-[#D4FC36]">
+                <span className="font-mono text-xs font-semibold uppercase tracking-wider text-primary">
                   Langkah pemeriksaan
                 </span>
-                <span className="font-mono text-xs text-[#8C989F]">
+                <span className="font-mono text-xs text-muted-foreground">
                   {progressValue}%
                 </span>
               </div>
@@ -457,27 +457,27 @@ export function DropzoneScanner({
                     className={cn(
                       "rounded-lg border px-3 py-2 text-xs transition-colors",
                       step.status === "completed" &&
-                        "border-[#34D399]/35 bg-[#34D399]/6",
+                        "border-verdict-true/35 bg-verdict-true/6",
                       step.status === "active" &&
-                        "border-[#D4FC36]/60 bg-[#D4FC36]/10",
+                        "border-primary/60 bg-primary/10",
                       step.status === "error" &&
-                        "border-[#F87171]/50 bg-[#F87171]/10",
+                        "border-verdict-false/50 bg-verdict-false/10",
                       step.status === "pending" &&
-                        "border-[#2A3238]/60 bg-[#15191C]/40"
+                        "border-border/60 bg-card/40"
                     )}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-semibold text-[#F3F4F5]">
+                      <span className="font-mono font-semibold text-foreground">
                         {step.code} — {step.label}
                       </span>
                       {step.status === "completed" && (
-                        <CheckCircle2 className="size-3.5 shrink-0 text-[#34D399]" />
+                        <CheckCircle2 className="size-3.5 shrink-0 text-verdict-true" />
                       )}
                       {step.status === "active" && (
-                        <Loader2 className="size-3.5 shrink-0 animate-spin text-[#D4FC36]" />
+                        <Loader2 className="size-3.5 shrink-0 animate-spin text-primary" />
                       )}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-[#8C989F]">
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
                       {step.detail || step.description}
                     </p>
                   </li>
@@ -485,8 +485,8 @@ export function DropzoneScanner({
               </ol>
 
               {isAnalyzing && (
-                <div className="mt-4 space-y-2 rounded-lg border border-[#D4FC36]/30 bg-[#15191C]/70 p-3">
-                  <p className="font-mono text-[10px] uppercase tracking-wider text-[#D4FC36]">
+                <div className="mt-4 space-y-2 rounded-lg border border-primary/30 bg-card/70 p-3">
+                  <p className="font-mono text-[10px] uppercase tracking-wider text-primary">
                     Menyusun Berkas Investigasi...
                   </p>
                   <Skeleton className="h-3 w-4/5" />
@@ -500,7 +500,7 @@ export function DropzoneScanner({
         {errorMessage && (
           <Alert variant="destructive">
             <AlertTitle>Analisis Tidak Dapat Dilanjutkan</AlertTitle>
-            <AlertDescription className="text-[#F87171]/90">
+            <AlertDescription className="text-verdict-false/90">
               {errorMessage}
             </AlertDescription>
           </Alert>

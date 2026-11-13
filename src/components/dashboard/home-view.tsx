@@ -94,7 +94,7 @@ export function HomeView({ onVerify, onMethodology }: HomeViewProps) {
         </div>
         <ol className="grid gap-px border border-border bg-border md:grid-cols-3">
           <li className="bg-card p-6">
-            <p className="font-heading text-3xl font-medium text-[#F87171]">
+            <p className="font-heading text-3xl font-medium text-verdict-false">
               Hoaks
             </p>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
@@ -102,7 +102,7 @@ export function HomeView({ onVerify, onMethodology }: HomeViewProps) {
             </p>
           </li>
           <li className="bg-card p-6">
-            <p className="font-heading text-3xl font-medium text-[#34D399]">
+            <p className="font-heading text-3xl font-medium text-verdict-true">
               Valid
             </p>
             <p className="mt-3 text-sm leading-relaxed text-muted-foreground">

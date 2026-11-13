@@ -42,10 +42,10 @@ export function EvidenceRegistryView({
       </div>
 
       <Card>
-        <CardHeader className="border-b border-[#2A3238]/70 pb-4">
+        <CardHeader className="border-b border-border/70 pb-4">
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2">
-              <ShieldCheck className="size-5 text-[#D4FC36]" />
+              <ShieldCheck className="size-5 text-primary" />
               Daftar tautan
             </CardTitle>
             <Badge variant="default">URL Tervalidasi</Badge>
@@ -69,19 +69,19 @@ export function EvidenceRegistryView({
                     <button
                       type="button"
                       onClick={() => onSelectCase(caseId)}
-                      className="cursor-pointer font-mono text-xs text-[#D4FC36] hover:underline"
+                      className="cursor-pointer font-mono text-xs text-primary hover:underline"
                     >
                       {caseId}
                     </button>
                     {isDemo && (
-                      <div className="font-mono text-[10px] text-[#FBBF24]">
+                      <div className="font-mono text-[10px] text-verdict-mislead">
                         DEMO
                       </div>
                     )}
                   </TableCell>
                   <TableCell className="text-xs font-medium">
                     <div className="flex items-center gap-1.5">
-                      <Globe2 className="size-3.5 text-[#8C989F]" />
+                      <Globe2 className="size-3.5 text-muted-foreground" />
                       {src.publisher}
                     </div>
                   </TableCell>
@@ -92,12 +92,12 @@ export function EvidenceRegistryView({
                     <EvidenceRelationBadge relation={src.relation} />
                   </TableCell>
                   <TableCell className="max-w-md text-xs">
-                    <p className="font-medium text-[#F3F4F5]">{src.title}</p>
+                    <p className="font-medium text-foreground">{src.title}</p>
                     <a
                       href={src.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-[#D4FC36] hover:underline"
+                      className="mt-0.5 inline-flex items-center gap-1 font-mono text-[11px] text-primary hover:underline"
                     >
                       {src.url}
                       <ExternalLink className="size-3" />

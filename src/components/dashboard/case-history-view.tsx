@@ -60,7 +60,7 @@ export function CaseHistoryView({
 
   return (
     <Card>
-      <CardHeader className="border-b border-[#2A3238]/70 pb-4">
+      <CardHeader className="border-b border-border/70 pb-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className="font-heading text-2xl font-medium">
@@ -72,7 +72,7 @@ export function CaseHistoryView({
 
         <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="relative max-w-sm flex-1">
-            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-[#8C989F]" />
+            <Search className="pointer-events-none absolute left-3 top-2.5 size-4 text-muted-foreground" />
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -121,13 +121,13 @@ export function CaseHistoryView({
               <TableRow
                 key={item.caseId}
                 className={
-                  item.caseId === activeCaseId ? "bg-[#1C2226]/80" : undefined
+                  item.caseId === activeCaseId ? "bg-secondary/80" : undefined
                 }
               >
-                <TableCell className="font-mono text-xs text-[#D4FC36]">
+                <TableCell className="font-mono text-xs text-primary">
                   <div>{item.caseId}</div>
                   {item.isDemo && (
-                    <span className="text-[10px] text-[#FBBF24]">
+                    <span className="text-[10px] text-verdict-mislead">
                       DEMO FIXTURE
                     </span>
                   )}
@@ -139,7 +139,7 @@ export function CaseHistoryView({
                   <div className="font-medium">
                     {item.claimExtraction.platform}
                   </div>
-                  <div className="font-mono text-[11px] text-[#8C989F]">
+                  <div className="font-mono text-[11px] text-muted-foreground">
                     {item.claimExtraction.visibleAccountHandle || "Anonim/N/A"}
                   </div>
                 </TableCell>
@@ -149,7 +149,7 @@ export function CaseHistoryView({
                 <TableCell>
                   <PostStanceBadge stance={item.verdict.postStance} />
                 </TableCell>
-                <TableCell className="font-mono text-[11px] text-[#8C989F]">
+                <TableCell className="font-mono text-[11px] text-muted-foreground">
                   {formatWibTimestamp(item.checkedAt)}
                 </TableCell>
                 <TableCell className="text-right">

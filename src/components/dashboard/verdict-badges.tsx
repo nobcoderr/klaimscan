@@ -21,9 +21,9 @@ export function getVerdictStyle(verdict: ClaimVerdict) {
     case "FALSE":
       return {
         badgeVariant: "threat" as const,
-        colorClass: "text-[#F87171]",
-        borderClass: "border-[#F87171]/40",
-        bgClass: "bg-[#F87171]/10",
+        colorClass: "text-verdict-false",
+        borderClass: "border-verdict-false/40",
+        bgClass: "bg-verdict-false/10",
         shortCode: "FALSE • HOAKS",
         displayLabel: "FALSE (Hoaks)",
         Icon: ShieldAlert,
@@ -31,9 +31,9 @@ export function getVerdictStyle(verdict: ClaimVerdict) {
     case "TRUE":
       return {
         badgeVariant: "verified" as const,
-        colorClass: "text-[#34D399]",
-        borderClass: "border-[#34D399]/40",
-        bgClass: "bg-[#34D399]/10",
+        colorClass: "text-verdict-true",
+        borderClass: "border-verdict-true/40",
+        bgClass: "bg-verdict-true/10",
         shortCode: "TRUE • TERVERIFIKASI",
         displayLabel: "TRUE (Terverifikasi)",
         Icon: ShieldCheck,
@@ -41,9 +41,9 @@ export function getVerdictStyle(verdict: ClaimVerdict) {
     case "MISLEADING":
       return {
         badgeVariant: "warning" as const,
-        colorClass: "text-[#FBBF24]",
-        borderClass: "border-[#FBBF24]/40",
-        bgClass: "bg-[#FBBF24]/10",
+        colorClass: "text-verdict-mislead",
+        borderClass: "border-verdict-mislead/40",
+        bgClass: "bg-verdict-mislead/10",
         shortCode: "MISLEADING • MENYESATKAN",
         displayLabel: "MISLEADING (Menyesatkan)",
         Icon: AlertTriangle,
