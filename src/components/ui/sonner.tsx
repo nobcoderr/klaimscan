@@ -5,13 +5,13 @@ import { Toaster as Sonner, type ToasterProps } from "sonner";
 function Toaster({ ...props }: ToasterProps) {
   return (
     <Sonner
-      theme="light"
+      theme="dark"
       className="toaster group"
       toastOptions={{
         style: {
-          background: "#fffcf8",
-          color: "#1c2824",
-          border: "1px solid #d5dfd8",
+          background: "#15191C",
+          color: "#F3F4F5",
+          border: "1px solid #2A3238",
         },
       }}
       {...props}

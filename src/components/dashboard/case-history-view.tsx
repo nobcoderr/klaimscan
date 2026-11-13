@@ -96,7 +96,7 @@ export function CaseHistoryView({
         </div>
       </CardHeader>
 
-      <CardContent className="ks-ledger overflow-hidden rounded-b-2xl p-0">
+      <CardContent className="pt-4">
         <Table>
           <TableHeader>
             <TableRow>

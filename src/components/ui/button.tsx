@@ -11,7 +11,7 @@ const buttonVariants = cva(
         default:
           "bg-secondary text-foreground border border-border hover:border-primary/50 hover:bg-secondary/80",
         cyber:
-          "bg-primary text-primary-foreground font-semibold shadow-sm hover:bg-[#185843]",
+          "bg-primary text-primary-foreground font-semibold hover:bg-[#e4ff6a]",
         destructive:
           "bg-verdict-false/15 text-verdict-false border border-verdict-false/40 hover:bg-verdict-false/25",
         outline:
