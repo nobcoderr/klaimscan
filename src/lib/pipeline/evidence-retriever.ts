@@ -1110,7 +1110,7 @@ export async function retrieveEvidence(params: {
   const searchTimeout = timeoutMs
     ? Math.min(timeoutMs, WEB_SEARCH_TIMEOUT_MS)
     : WEB_SEARCH_TIMEOUT_MS;
-  const firstSearchTimeout = Math.max(500, Math.floor(searchTimeout * 0.75));
+  const firstSearchTimeout = Math.max(500, searchTimeout);
   const initialQueries = queryPlan.slice(0, 3);
 
   const [factCheckRes, mafindoRes, webSearchResults] = await Promise.all([
@@ -1146,16 +1146,24 @@ export async function retrieveEvidence(params: {
   combined.push(...factCheckRes.candidates, ...mafindoRes.candidates);
 
   let webSearchCandidateCount = 0;
+  const failedSearchIndexes: number[] = [];
   for (const [index, result] of webSearchResults.entries()) {
     if (result.status === "rejected") {
-      warnings.push(
-        `Penelusuran web_search untuk strategi ${index + 1} gagal atau timeout.`
-      );
+      failedSearchIndexes.push(index + 1);
       continue;
     }
 
     combined.push(...result.value.candidates);
     webSearchCandidateCount += result.value.candidates.length;
+  }
+  if (failedSearchIndexes.length === 1) {
+    warnings.push(
+      `Penelusuran web untuk strategi ${failedSearchIndexes[0]} gagal atau timeout.`
+    );
+  } else if (failedSearchIndexes.length > 1) {
+    warnings.push(
+      "Penelusuran web untuk strategi awal tidak selesai dalam waktu yang tersedia. Google Fact Check tetap dipakai bila merespons."
+    );
   }
 
   const remainingSearchBudget = searchTimeout - (Date.now() - startedAt);
@@ -1241,17 +1249,20 @@ export async function retrieveSupplementalEvidence(params: {
   const combined: CandidateEvidence[] = [];
   const warnings: string[] = [];
 
-  for (const [index, result] of results.entries()) {
+  let failedSupplemental = 0;
+  for (const result of results) {
     if (result.status === "rejected") {
-      warnings.push(
-        `Pencarian tambahan berbasis kualitas bukti (${index + 1}) gagal atau timeout.`
-      );
+      failedSupplemental += 1;
       continue;
     }
     combined.push(...result.value.candidates);
   }
 
-  if (combined.length === 0) {
+  if (failedSupplemental === results.length && failedSupplemental > 0) {
+    warnings.push(
+      "Pencarian tambahan tidak selesai dalam waktu yang tersedia."
+    );
+  } else if (combined.length === 0) {
     warnings.push(
       "Pencarian tambahan tidak menemukan kandidat bukti yang dapat dipakai."
     );

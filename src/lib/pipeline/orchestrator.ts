@@ -256,8 +256,8 @@ export async function runAnalysisPipeline(params: {
       t0 = Date.now();
       markStep("evidence_retrieval", { status: "active" });
       const retrievalBudgetMs = Math.min(
-        8_000,
-        Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 18_000)
+        22_000,
+        Math.max(MIN_STAGE_BUDGET_MS, remainingMs() - 12_000)
       );
       let retrieval;
       try {
@@ -329,10 +329,10 @@ export async function runAnalysisPipeline(params: {
       const shouldExpandSearch = needsSupplementalEvidenceSearch(
         comparison.sources
       );
-      if (shouldExpandSearch && remainingMs() >= 7_000) {
+      const supplementalBudgetMs = Math.min(12_000, remainingMs() - 6_000);
+      if (shouldExpandSearch && supplementalBudgetMs >= 8_000) {
         t0 = Date.now();
         markStep("evidence_retrieval", { status: "active" });
-        const supplementalBudgetMs = Math.min(4_000, remainingMs() - 5_000);
         const supplemental = await retrieveSupplementalEvidence({
           client,
           searchModel: env.searchModel,
