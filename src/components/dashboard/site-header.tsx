@@ -139,7 +139,7 @@ export function SiteHeader({
             onClick={() => go("home")}
             className="inline-flex cursor-pointer items-center gap-2 outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
           >
-            <span className="inline-block h-5 w-1 bg-primary" aria-hidden="true" />
+            <span className="ks-mark inline-block h-5 w-1 bg-primary" aria-hidden="true" />
             <span className="font-heading text-lg font-bold tracking-tight">
               KLAIMSCAN
             </span>

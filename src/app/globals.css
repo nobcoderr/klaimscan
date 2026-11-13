@@ -133,6 +133,63 @@
     linear-gradient(to right, rgba(42, 50, 56, 0.35) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(42, 50, 56, 0.35) 1px, transparent 1px);
   background-size: 80px 80px;
+  animation: ks-grid-drift 36s linear infinite;
+}
+
+@keyframes ks-grid-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 80px 80px;
+  }
+}
+
+@keyframes ks-rise {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes ks-mark {
+  0%,
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scaleY(0.72);
+    opacity: 0.55;
+  }
+}
+
+.ks-rise {
+  animation: ks-rise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ks-rise-late {
+  animation-delay: 0.12s;
+}
+
+.ks-mark {
+  transform-origin: center;
+  animation: ks-mark 2.8s ease-in-out infinite;
+}
+
+[data-slot="card"] {
+  transition:
+    transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+    border-color 0.35s ease;
+}
+
+[data-slot="card"]:hover {
+  transform: translateY(-3px);
+  border-color: rgba(212, 252, 54, 0.45);
 }
 
 @keyframes ks-scan-sweep {
@@ -166,6 +223,14 @@
 }
 
 @media print {
+  .ks-grid,
+  .ks-rise,
+  .ks-mark,
+  [data-slot="card"] {
+    animation: none !important;
+    transform: none !important;
+  }
+
   @page {
     size: A4;
     margin: 14mm;

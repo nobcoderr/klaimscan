@@ -35,9 +35,9 @@ export function EvidenceRegistryView({
     <div className="space-y-4">
       <div className="max-w-2xl">
         <h2 className="font-heading text-2xl font-semibold">Sumber pada kasus ini</h2>
-        <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          {rows.length} tautan dari kasus yang sedang dimuat di browser ini,
-          termasuk fixture contoh. Angka ini bukan metrik platform.
+        <p className="mt-2 font-sans text-sm leading-relaxed text-muted-foreground">
+          9 tautan dari kasus yang sedang dimuat di browser ini, termasuk
+          fixture contoh. Angka ini bukan metrik platform.
         </p>
       </div>
 

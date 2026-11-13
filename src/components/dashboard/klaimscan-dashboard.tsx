@@ -95,14 +95,16 @@ export function KlaimscanDashboard({
         className="mx-auto w-full max-w-6xl scroll-mt-20 bg-background px-4 py-12 sm:px-6 sm:py-16"
       >
         {screen === "home" && (
-          <HomeView
-            onVerify={() => setScreen("verify")}
-            onMethodology={() => setScreen("methodology")}
-          />
+          <div className="ks-rise">
+            <HomeView
+              onVerify={() => setScreen("verify")}
+              onMethodology={() => setScreen("methodology")}
+            />
+          </div>
         )}
 
         {screen === "verify" && (
-          <div className="space-y-8">
+          <div className="ks-rise space-y-8">
             <header className="max-w-2xl space-y-3">
               <p className="font-mono text-xs tracking-[0.16em] text-primary">
                 RUANG KERJA
@@ -110,6 +112,12 @@ export function KlaimscanDashboard({
               <h1 className="font-heading text-4xl font-medium tracking-tight sm:text-5xl">
                 Periksa klaim
               </h1>
+              <p className="font-sans text-base leading-relaxed text-muted-foreground">
+                Periksa klaim adalah langkah mengunggah screenshot dan menguji
+                teks yang tertulis di dalamnya. Headline dan caption
+                dibandingkan dengan sumber terbuka, lalu mendapat satu bacaan:
+                hoaks, valid, menyesatkan, kedaluwarsa, atau butuh verifikasi.
+              </p>
             </header>
             <DropzoneScanner
               serverConfig={serverConfig}
@@ -129,7 +137,7 @@ export function KlaimscanDashboard({
         )}
 
         {screen === "result" && (
-          <div className="space-y-8">
+          <div className="ks-rise space-y-8">
             <header className="no-print flex flex-wrap items-end justify-between gap-4">
               <div className="space-y-3">
                 <p className="font-mono text-xs tracking-[0.16em] text-primary">
@@ -168,7 +176,7 @@ export function KlaimscanDashboard({
         )}
 
         {screen === "history" && (
-          <div className="space-y-10">
+          <div className="ks-rise space-y-10">
             <header className="max-w-2xl space-y-3">
               <p className="font-mono text-xs tracking-[0.16em] text-primary">
                 SESI BROWSER
@@ -176,6 +184,11 @@ export function KlaimscanDashboard({
               <h1 className="font-heading text-4xl font-medium tracking-tight sm:text-5xl">
                 Riwayat kasus
               </h1>
+              <p className="font-sans text-base leading-relaxed text-muted-foreground">
+                Riwayat kasus menampilkan pemeriksaan pada sesi browser ini
+                bersama fixture contoh. Pilih satu baris untuk membuka
+                hasilnya.
+              </p>
             </header>
             <DemoFixtureSwitch
               activeCaseId={activeCaseId}
@@ -193,13 +206,19 @@ export function KlaimscanDashboard({
           </div>
         )}
 
-        {screen === "methodology" && <MethodologyView />}
+        {screen === "methodology" && (
+          <div className="ks-rise">
+            <MethodologyView />
+          </div>
+        )}
         {screen === "about" && (
-          <AboutView
-            serverConfig={serverConfig}
-            onVerify={() => setScreen("verify")}
-            onMethodology={() => setScreen("methodology")}
-          />
+          <div className="ks-rise">
+            <AboutView
+              serverConfig={serverConfig}
+              onVerify={() => setScreen("verify")}
+              onMethodology={() => setScreen("methodology")}
+            />
+          </div>
         )}
       </main>
 
