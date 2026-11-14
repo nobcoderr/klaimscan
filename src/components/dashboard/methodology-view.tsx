@@ -6,17 +6,17 @@ const STEPS = [
   {
     index: "01",
     title: "Masukan",
-    body: "Berkas yang diterima adalah screenshot PNG, JPG, atau WEBP, paling besar 4 MB. Tanda tangan berkas diperiksa, lalu metadata EXIF dan XMP dihapus sebelum teks dibaca.",
+    body: "Berkas yang diterima adalah screenshot PNG, JPG, atau WEBP, paling besar 4 MB.",
   },
   {
     index: "02",
     title: "Pembacaan teks",
-    body: "OCR berjalan dua tahap. Tahap pertama menyalin headline, teks overlay, dan caption beserta posisinya. Tahap kedua memecah teks itu menjadi proposisi: subjek, tindakan, objek, dan keterangan waktu bila tertulis.",
+    body: "OCR berjalan dua tahap. Tahap pertama menyalin headline, teks overlay, dan caption beserta posisinya. Tahap kedua memecah teks itu menjadi proposisi: subjek, tindakan, objek, dan keterangan waktu.",
   },
   {
     index: "03",
     title: "Penelusuran",
-    body: "Proposisi dicari bersamaan di MAFINDO Yudistira, Google Fact Check, dan web terbuka. Yudistira membantu menemukan pemeriksaan yang sudah ada. Status angka di basis data itu tidak diubah menjadi hoaks, valid, menyesatkan, atau belum terverifikasi.",
+    body: "Proposisi dicari bersamaan di MAFINDO Yudistira, Google Fact Check, dan web terbuka. Yudistira membantu menemukan pemeriksaan yang sudah ada. Status angka di basis data itu tidak diubah menjadi hoaks, valid, atau belum terverifikasi.",
   },
   {
     index: "04",
