@@ -68,7 +68,7 @@ Seluruh eksekusi dikawal oleh *root deadline controller* (`ANALYZE_PIPELINE_DEAD
 - Satu sumber pembantah terisolasi tidak mengesampingkan mayoritas bukti `partial_context` kredibel menjadi `FALSE`.
 
 ### 06 — Public Origin Trace & Report Generator (`src/lib/pipeline/public-trace.ts`, `report-generator.ts`)
-- Menyusun kronologi peristiwa publik, memisahkan bukti mendukung/membantah/konteks parsial, dan menanamkan jaminan privasi & batasan metodologi siap cetak PDF (`@media print`).
+- Menyusun kronologi peristiwa publik, memisahkan bukti mendukung/membantah/konteks parsial, dan menanamkan jaminan privasi serta batasan metodologi.
 
 ---
 

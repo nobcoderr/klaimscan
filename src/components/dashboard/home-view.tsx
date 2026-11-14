@@ -128,7 +128,7 @@ export function HomeView({ onVerify, onMethodology }: HomeViewProps) {
           </h2>
           <p className="mt-3 text-base leading-relaxed text-muted-foreground">
             Alur yang sama berjalan pada setiap screenshot: validasi berkas,
-            pembacaan teks, perbandingan bukti, lalu laporan yang bisa dicetak.
+            pembacaan teks, perbandingan bukti, lalu penetapan bacaan.
           </p>
         </div>
         <ol className="grid gap-px border border-border bg-border sm:grid-cols-2 xl:grid-cols-4">

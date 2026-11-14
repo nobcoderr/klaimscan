@@ -30,8 +30,8 @@ const STEPS = [
   },
   {
     index: "06",
-    title: "Laporan",
-    body: "Hasil disusun sebagai ringkasan, daftar bukti, linimasa, jejak publik, dan berkas yang bisa dicetak. Laporan memuat tautan sumber dan identitas pemeriksaan.",
+    title: "Hasil",
+    body: "Hasil disusun sebagai ringkasan, daftar bukti, linimasa, dan jejak publik. Setiap bagian memuat tautan sumber dan identitas pemeriksaan.",
   },
 ];
 

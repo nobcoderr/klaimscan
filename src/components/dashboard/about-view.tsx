@@ -37,7 +37,6 @@ export function AboutView({
           <li>Proposisi faktual yang bisa diuji satu per satu.</li>
           <li>Sumber pendukung, pembantah, dan yang belum cukup.</li>
           <li>Jejak waktu dan tautan publik yang terindeks.</li>
-          <li>Laporan yang bisa dicetak atau disimpan sebagai PDF.</li>
         </ul>
       </section>
 

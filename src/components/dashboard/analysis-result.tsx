@@ -4,16 +4,13 @@ import * as React from "react";
 import {
   AlertTriangle,
   ArrowRight,
-  CheckCircle2,
   Clock,
   ExternalLink,
   FileText,
-  Fingerprint,
   Globe2,
   Highlighter,
   Layers,
   Lock,
-  Printer,
   ShieldAlert,
   ShieldCheck,
   UserCheck,
@@ -23,14 +20,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   type EvidenceSource,
@@ -46,7 +35,6 @@ import { cn, formatWibTimestamp } from "@/lib/utils";
 import {
   ClaimReading,
   EvidenceRelationBadge,
-  getClaimReading,
   getVerdictStyle,
   PostStanceBadge,
   SourceTierBadge,
@@ -57,8 +45,7 @@ export type ResultViewTab =
   | "assessment"
   | "evidence"
   | "timeline"
-  | "trace"
-  | "report";
+  | "trace";
 
 interface AnalysisResultProps {
   report: InvestigationReport;
@@ -585,7 +572,6 @@ export function AnalysisResult({
   onTabChange,
 }: AnalysisResultProps) {
   const verdictStyle = getVerdictStyle(report.verdict.claimVerdict);
-  const claimReading = getClaimReading(report.verdict.claimVerdict);
   const VerdictIcon = verdictStyle.Icon;
 
   const ocrRegions = React.useMemo(
@@ -628,19 +614,10 @@ export function AnalysisResult({
   const graphicOverlays = report.claimExtraction.graphicOverlayTexts ?? [];
   const normalizedClaims = report.claimExtraction.normalizedClaims ?? [];
 
-  const handlePrint = () => {
-    if (onTabChange) {
-      onTabChange("report");
-    }
-    setTimeout(() => {
-      window.print();
-    }, 120);
-  };
-
   return (
     <div className="space-y-8">
       {report.isDemo && (
-        <Alert variant="cyber" className="no-print">
+        <Alert variant="cyber">
           <AlertTriangle className="size-4 text-primary" />
           <AlertTitle>
             DEMO MODE — Fixture Data ({report.demoCategoryLabel || "Demo Case"})
@@ -654,7 +631,7 @@ export function AnalysisResult({
       )}
 
       {report.warnings.length > 0 && (
-        <Alert variant="warning" className="no-print">
+        <Alert variant="warning">
           <AlertTriangle className="size-4 text-verdict-mislead" />
           <AlertTitle>Peringatan pada bukti ini</AlertTitle>
           <AlertDescription>
@@ -668,7 +645,7 @@ export function AnalysisResult({
       )}
 
       {/* Dual Split Cards matching SOC Dashboard */}
-      <div className="no-print grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card className={cn("border", verdictStyle.borderClass)}>
           <CardContent className="flex flex-col justify-between gap-4 pt-5">
             <div className="flex items-start justify-between gap-3">
@@ -740,15 +717,6 @@ export function AnalysisResult({
                   </p>
                 </div>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={handlePrint}
-              >
-                <Printer className="size-3.5 text-primary" />
-                Print / PDF
-              </Button>
             </div>
 
             <div className="space-y-2">
@@ -799,7 +767,7 @@ export function AnalysisResult({
 
       {/* Explicit Debunking Stance Separation Alert */}
       {report.claimExtraction.postStance === "debunking_claim" && (
-        <Alert variant="verified" className="no-print">
+        <Alert variant="verified">
           <UserCheck className="size-4 text-verdict-true" />
           <AlertTitle>
             Pemisahan Klasifikasi Postingan vs Verdict Klaim Aktif
@@ -828,15 +796,14 @@ export function AnalysisResult({
         onValueChange={(v) => onTabChange?.(v as ResultViewTab)}
         className="space-y-4"
       >
-        <TabsList className="no-print" aria-label="Bagian hasil">
+        <TabsList aria-label="Bagian hasil">
           <TabsTrigger value="assessment">Ringkasan</TabsTrigger>
           <TabsTrigger value="evidence">Bukti</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="trace">Jejak Publik</TabsTrigger>
-          <TabsTrigger value="report">Laporan</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="assessment" className="no-print space-y-4">
+        <TabsContent value="assessment" className="space-y-4">
           <Card>
             <CardHeader>
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -846,7 +813,10 @@ export function AnalysisResult({
             </CardHeader>
             <CardContent className="space-y-5">
               {/* Mandatory Text-First Notice */}
-              <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="space-y-2 text-xs">
+                <p className="leading-relaxed text-muted-foreground">
+                  {verificationNotice}
+                </p>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="outline">
                     Topik: {report.claimExtraction.topicCategory}
@@ -1295,7 +1265,7 @@ export function AnalysisResult({
           </Card>
         </TabsContent>
 
-                <TabsContent value="evidence" className="no-print space-y-4">
+                <TabsContent value="evidence" className="space-y-4">
           <Card>
             <CardContent className="space-y-4 pt-6">
 {/* 5. EVIDENCE SOURCES */}
@@ -1424,7 +1394,7 @@ export function AnalysisResult({
           </Card>
         </TabsContent>
 
-        <TabsContent value="timeline" className="no-print space-y-4">
+        <TabsContent value="timeline" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Evidence Timeline &amp; Chronological Audit</CardTitle>
@@ -1482,7 +1452,7 @@ export function AnalysisResult({
           </Card>
         </TabsContent>
 
-        <TabsContent value="trace" className="no-print space-y-4">
+        <TabsContent value="trace" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle>Public Source Trace (OSINT Terbatas)</CardTitle>
@@ -1584,268 +1554,6 @@ export function AnalysisResult({
           </Card>
         </TabsContent>
 
-        {/* Dedicated Print-to-PDF Case Report */}
-        <TabsContent
-          value="report"
-          forceMount
-          className={cn(
-            activeTab !== "report" ? "hidden print:block" : "block"
-          )}
-        >
-          <Card className="print-surface border-border">
-            <CardHeader className="border-b border-border pb-4">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <p className="font-mono text-xs uppercase tracking-widest text-primary print-muted">
-                    KLAIMSCAN AI • TEXT-FIRST AUDITABLE CASE REPORT{" "}
-                    {report.isDemo ? "• DEMO FIXTURE" : ""}
-                  </p>
-                  <CardTitle className="mt-1 text-xl">
-                    Laporan Investigasi Pemeriksaan Fakta
-                  </CardTitle>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground print-muted">
-                    Case ID: {report.caseId} · Timestamp Analisis:{" "}
-                    {formatWibTimestamp(report.checkedAt)}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="cyber"
-                  onClick={handlePrint}
-                  className="no-print"
-                >
-                  <Printer className="size-4" />
-                  Cetak / Simpan PDF
-                </Button>
-              </div>
-            </CardHeader>
-
-            <CardContent className="space-y-5 pt-5">
-              <div className="rounded-lg border border-primary/40 p-3 text-xs font-medium print-surface">
-                {verificationNotice}
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-lg border border-border p-4 print-surface">
-                  <p className="font-mono text-[11px] uppercase text-muted-foreground print-muted">
-                    Klaim Tekstual &amp; Verdict Faktual
-                  </p>
-                  <p className="mt-1 font-heading text-3xl font-medium">
-                    {claimReading.title}
-                  </p>
-                  <p className="mt-1 font-mono text-xs text-muted-foreground print-muted">
-                    {report.verdict.claimVerdict}
-                  </p>
-                  <p className="mt-2 text-sm">
-                    {report.claimExtraction.primaryClaim}
-                  </p>
-                  <p className="mt-2 text-xs text-muted-foreground print-muted">
-                    <strong>Headline:</strong> {extractedHeadline}
-                  </p>
-                  {extractedCaption && (
-                    <p className="mt-1 text-xs text-muted-foreground print-muted">
-                      <strong>Caption:</strong> {extractedCaption}
-                    </p>
-                  )}
-                  {report.verdict.qualifiedStatusLabels &&
-                    report.verdict.qualifiedStatusLabels.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {report.verdict.qualifiedStatusLabels.map((label) => (
-                          <Badge
-                            key={`print-${label}`}
-                            variant={getQualifiedLabelVariant(label)}
-                          >
-                            {label}
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                </div>
-
-                <div className="rounded-lg border border-border p-4 print-surface">
-                  <p className="font-mono text-[11px] uppercase text-muted-foreground print-muted">
-                    Post Stance &amp; Public Trace
-                  </p>
-                  <p className="mt-1 font-heading text-lg font-bold">
-                    {report.verdict.postClassification}
-                  </p>
-                  <p className="mt-2 font-mono text-xs text-muted-foreground print-muted">
-                    Platform: {report.publicOriginTrace.platform} · Akun:{" "}
-                    {report.publicOriginTrace.visibleAccountHandle ||
-                      "Tidak terlihat"}{" "}
-                    · Waktu:{" "}
-                    {report.publicOriginTrace.visibleTimestamp || "N/A"}
-                  </p>
-                  {report.publicOriginTrace.visiblePostUrl && (
-                    <p className="mt-1 break-all font-mono text-[11px] text-primary print-muted">
-                      URL terlihat: {report.publicOriginTrace.visiblePostUrl}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="rounded-lg border border-border p-4 print-surface">
-                <p className="font-mono text-[11px] uppercase text-muted-foreground print-muted">
-                  Penjelasan &amp; Ringkasan Bukti
-                </p>
-                <p className="mt-2 text-sm leading-relaxed">
-                  {report.verdict.explanation}
-                </p>
-                {report.analystNotes && (
-                  <p className="mt-2 border-t border-border/50 pt-2 text-xs text-muted-foreground print-muted">
-                    <strong>Catatan Analis:</strong> {report.analystNotes}
-                  </p>
-                )}
-              </div>
-
-              {report.verdict.atomicAssessments &&
-                report.verdict.atomicAssessments.length > 0 && (
-                  <div className="rounded-lg border border-border p-4 print-surface">
-                    <p className="font-mono text-[11px] uppercase text-muted-foreground print-muted">
-                      Rincian Proposisi Atomik &amp; Aspek Verifikasi
-                    </p>
-                    <div className="mt-2 space-y-2">
-                      {report.verdict.atomicAssessments.map((item) => (
-                        <div
-                          key={`print-ac-${item.id}`}
-                          className="border-b border-border/40 pb-2 text-xs last:border-b-0 last:pb-0"
-                        >
-                          <div className="font-semibold">
-                            [{item.id}] {item.label}: {item.statusLabel}
-                          </div>
-                          <div>{item.proposition}</div>
-                          <div className="text-[11px] text-muted-foreground print-muted">
-                            {item.rationale}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-              <div>
-                <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                  <h4 className="font-heading text-sm font-semibold">
-                    Bukti Pendukung &amp; Pembantah Terverifikasi (
-                    {report.evidenceSources.length})
-                  </h4>
-                  <div className="flex flex-wrap gap-1.5 font-mono text-[11px]">
-                    <Badge variant="verified">
-                      Supporting: {report.supportingEvidence.length}
-                    </Badge>
-                    <Badge variant="threat">
-                      Contradicting: {report.contradictingEvidence.length}
-                    </Badge>
-                    <Badge variant="warning">
-                      Partial Context: {report.partialContextEvidence.length}
-                    </Badge>
-                  </div>
-                </div>
-                {report.evidenceSources.length === 0 ? (
-                  <p className="text-sm text-muted-foreground print-muted">
-                    Tidak ditemukan sumber bukti terverifikasi yang memadai;
-                    verdict ditetapkan sebagai UNVERIFIED.
-                  </p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead>Kategori &amp; Aspek</TableHead>
-                        <TableHead>Penerbit &amp; Tgl</TableHead>
-                        <TableHead>Klaim Dievaluasi, Judul &amp; URL Sumber</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {report.evidenceSources.map((src) => (
-                        <TableRow key={`${src.id}-${src.url}`}>
-                          <TableCell className="font-mono text-xs">
-                            {src.id}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            <div>{src.relation}</div>
-                            {src.targetAspect && (
-                              <div className="text-[11px] text-muted-foreground print-muted">
-                                {src.targetAspect}
-                              </div>
-                            )}
-                            {src.temporalStatus &&
-                              src.temporalStatus !== "unclear" && (
-                                <div className="text-[11px] text-muted-foreground print-muted">
-                                  {src.temporalStatus}
-                                </div>
-                              )}
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <div className="font-medium">{src.publisher}</div>
-                            <div className="font-mono text-[11px] text-muted-foreground print-muted">
-                              {src.publishedAt || "Tgl tidak tercantum"}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            <div className="font-medium">{src.title}</div>
-                            <div className="mt-0.5 text-[11px] text-muted-foreground print-muted">
-                              Klaim: {src.claimEvaluated}
-                            </div>
-                            <a
-                              href={src.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="mt-0.5 block break-all font-mono text-[11px] text-primary underline"
-                            >
-                              {src.url}
-                            </a>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-border p-4 print-surface">
-                <p className="font-mono text-[11px] uppercase text-muted-foreground print-muted">
-                  Batasan Metodologi, Jejak Publik &amp; Privasi (Clear Limitations)
-                </p>
-                <p className="mt-2 text-xs text-verdict-mislead print-muted">
-                  {report.publicOriginTrace.attributionCaveat}
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground print-muted">
-                  {report.publicOriginTrace.privacyGuarantee}
-                </p>
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-muted-foreground print-muted">
-                  {report.limitations.map((item, idx) => (
-                    <li key={idx}>{item}</li>
-                  ))}
-                </ul>
-                {report.warnings.length > 0 && (
-                  <ul className="mt-2 border-t border-border/50 pt-2 text-[11px] text-muted-foreground print-muted">
-                    {report.warnings.map((warn, idx) => (
-                      <li key={idx}>Catatan Sistem: {warn}</li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-
-              <div className="rounded-lg border border-border p-3 font-mono text-[11px] text-muted-foreground print-surface print-muted">
-                <div className="flex flex-wrap items-center gap-x-6 gap-y-1">
-                  <span className="inline-flex items-center gap-1">
-                    <Fingerprint className="size-3.5" />
-                    SHA-256: {report.imageMetadata.sha256}
-                  </span>
-                  <span>
-                    Metadata removed:{" "}
-                    {report.imageMetadata.metadataRemovedBytes} bytes
-                  </span>
-                  <span>
-                    <CheckCircle2 className="mr-1 inline size-3" />
-                    Permanent image storage: No (ephemeral)
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

@@ -98,18 +98,11 @@ test.describe("KLAIMSCAN AI verification workspace", () => {
     await expect(
       page.getByText("Public Source Trace (OSINT Terbatas)")
     ).toBeVisible();
-
-    await page.getByRole("tab", { name: "Laporan" }).click();
+    await expect(page.getByRole("tab", { name: "Laporan" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Print / PDF" })).toHaveCount(0);
     await expect(
-      page.getByText("Laporan Investigasi Pemeriksaan Fakta")
-    ).toBeVisible();
-    await expect(page.getByText(/SHA-256:/i)).toBeVisible();
-    await expect(
-      page.getByText(/Permanent image storage: No \(ephemeral\)/i)
-    ).toBeVisible();
-    await expect(
-      page.getByText(/Batasan Metodologi, Jejak Publik & Privasi/i)
-    ).toBeVisible();
+      page.getByRole("button", { name: "Cetak / Simpan PDF" })
+    ).toHaveCount(0);
 
     await nav.getByRole("button", { name: "Metodologi" }).click();
     await expect(

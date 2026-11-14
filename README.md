@@ -24,7 +24,7 @@ flowchart TD
   mafindo["MAFINDO Yudistira, bila kunci tersedia"]
   banding["Setiap sumber dibandingkan dengan klaim yang sama"]
   baca["Satu bacaan ditetapkan"]
-  hasil["Ringkasan, bukti, linimasa, jejak publik, dan laporan"]
+  hasil["Ringkasan, bukti, linimasa, dan jejak publik"]
 
   unggah --> berkas --> teks --> klaim --> cari
   cari --> google --> banding
@@ -59,7 +59,7 @@ Di sini screenshot diunggah. Berkas yang diterima PNG, JPG, atau WEBP, paling be
 
 Hasil menampilkan satu kasus. Pemilih di atas berpindah antar kasus contoh. Daftar lengkap ada di Riwayat.
 
-Lima bagian hasil:
+Empat bagian hasil:
 
 **Ringkasan** menampilkan teks yang terbaca dan bacaan klaim.
 
@@ -68,8 +68,6 @@ Lima bagian hasil:
 **Timeline** menyusun jejak waktu pemeriksaan.
 
 **Jejak publik** menampilkan platform dan akun yang terlihat pada screenshot, plus batasan yang tidak dilakukan: tidak ada pelacakan IP, alamat, atau identitas hukum.
-
-**Laporan** adalah berkas yang bisa dicetak atau disimpan sebagai PDF.
 
 ### Riwayat kasus
 

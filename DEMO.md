@@ -13,7 +13,7 @@ Pada panel navigasi kiri (maupun bar cepat di bagian atas), tersedia akses langs
 3. **Analysis Result** — Pemisahan **Claim Assessment (Verdict Faktual)** vs **Evidence Trail**, peringatan pemisahan peran untuk postingan *Debunking*, serta daftar terpisah **Supporting Evidence** vs **Contradicting Evidence**.
 4. **Evidence Timeline** — Audit kronologis dari pengamatan postingan pada screenshot, tanggal klarifikasi resmi/fact-check terindeks, hingga waktu pemeriksaan sistem.
 5. **Public Source Trace** — Handle publik yang terlihat, URL publik terlihat, rujukan klarifikasi, jaminan privasi (tanpa pelacakan IP pribadi), dan peringatan non-atribusi penulis asli.
-6. **Case Report** — Tampilan siap cetak **Print / Save PDF** berisi SHA-256 screenshot, metadata yang dibersihkan, seluruh URL terverifikasi, catatan analis, dan batasan metodologi.
+6. **Hasil pemeriksaan** — Ringkasan, bukti, linimasa, dan jejak publik berisi URL terverifikasi, catatan analis, dan batasan metodologi.
 
 ---
 
@@ -38,4 +38,4 @@ Gunakan panel **Demo Mode Fixtures (`D-1` s.d. `D-6`)** di sidebar kiri untuk me
 2. Klik **`Muat Sample Uji`** (membuat PNG uji `@vereditum` secara dinamis di browser) atau seret file screenshot sosial media (JPG/PNG/WebP `<= 4 MB`) ke dropzone.
 3. (Opsional) Isi catatan konteks analis, misalnya *"Diterima dari grup WhatsApp publik, periksa apakah ada klarifikasi resmi"* lalu klik **`JALANKAN ANALISIS AI`**.
 4. Amati progres streaming 6 tahap (`01 Image Sanitization` s.d. `06 Case Report Generator`) yang ditandai sebagai **`LIVE EVIDENCE`** (bukan `DEMO FIXTURE`).
-5. Buka tab **Case Report (Print/PDF)** dan klik **`Cetak / Simpan PDF`** untuk melihat dokumen laporan audit yang bersih tanpa elemen navigasi gelap.
+5. Buka tab **Ringkasan**, **Bukti**, **Timeline**, dan **Jejak Publik** untuk membaca hasil pemeriksaan.

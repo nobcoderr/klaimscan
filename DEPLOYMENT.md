@@ -77,5 +77,5 @@ Setelah URL produksi aktif:
    - Pastikan **tidak ada** potongan key di respons JSON.
 2. **Uji Antarmuka Offline/Fixture & Upload Preview**:
    - Pastikan lencana kanan atas menampilkan **`SYSTEM ONLINE • LIVE AI READY`**.
-   - Klik `Muat Sample Uji` dan jalankan **`JALANKAN ANALISIS AI`**, lalu verifikasi laporan menampilkan badge `LIVE EVIDENCE`, URL resmi clickable, SHA-256 screenshot, serta opsi cetak **Print / Save PDF**.
+   - Klik `Muat Sample Uji` dan jalankan **`JALANKAN ANALISIS AI`**, lalu verifikasi hasil menampilkan badge `LIVE EVIDENCE` dan URL resmi yang bisa dibuka.
 3. **Cek Log Vercel**: Pastikan waktu eksekusi tetap di bawah `ANALYZE_PIPELINE_DEADLINE_MS` (`48s`) dan error terstruktur dapat dilacak dengan `errorId`.

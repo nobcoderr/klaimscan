@@ -138,7 +138,7 @@ export function KlaimscanDashboard({
 
         {screen === "result" && (
           <div className="ks-rise space-y-8">
-            <header className="no-print flex flex-wrap items-end justify-between gap-4">
+            <header className="flex flex-wrap items-end justify-between gap-4">
               <div className="space-y-3">
                 <p className="font-mono text-xs tracking-[0.16em] text-primary">
                   HASIL
@@ -155,7 +155,7 @@ export function KlaimscanDashboard({
                 Pemeriksaan baru
               </Button>
             </header>
-            <div className="no-print space-y-3">
+            <div className="space-y-3">
               <p className="max-w-2xl font-sans text-sm leading-relaxed text-muted-foreground">
                 Halaman ini menampilkan satu kasus saja. Daftar lengkap ada di
                 Riwayat.

@@ -47,7 +47,7 @@ export function createInitialPipelineSteps(): PipelineStepState[] {
       code: "06",
       label: "Case Report & Trace",
       description:
-        "Susun Public Source Trace, limitasi eksplisit, & laporan siap PDF",
+        "Susun Public Source Trace dan limitasi eksplisit",
       status: "pending",
     },
   ];
