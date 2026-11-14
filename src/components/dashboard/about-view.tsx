@@ -41,25 +41,6 @@ export function AboutView({
       </section>
 
       <section className="space-y-4 border-t border-border pt-8">
-        <h2 className="font-heading text-2xl font-semibold">Yang tidak dilakukan</h2>
-        <ul className="list-disc space-y-3 pl-5 font-sans text-sm leading-relaxed text-muted-foreground sm:text-base">
-          <li>
-            Tidak menelusuri IP pribadi, alamat rumah, GPS, atau identitas hukum
-            pengunggah dari sebuah gambar.
-          </li>
-          <li>
-            Tidak menyimpan screenshot secara permanen. Berkas diproses di
-            memori setelah metadata dihapus.
-          </li>
-          <li>
-            Riwayat pada aplikasi ini hanya hidup di sesi browser. Memuat ulang
-            halaman menghapus unggahan sesi. Kasus contoh tetap tersedia sebagai
-            fixture.
-          </li>
-        </ul>
-      </section>
-
-      <section className="space-y-4 border-t border-border pt-8">
         <h2 className="font-heading text-2xl font-semibold">Kesiapan pipeline</h2>
         <p className="text-sm leading-relaxed text-muted-foreground sm:text-base">
           Kunci API tidak dikirim ke browser. Status di bawah hanya menyatakan

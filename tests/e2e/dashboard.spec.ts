@@ -116,8 +116,11 @@ test.describe("KLAIMSCAN AI verification workspace", () => {
       page.getByRole("heading", { level: 1, name: "Tentang" })
     ).toBeVisible();
     await expect(
-      page.getByText(/Tidak menyimpan screenshot secara permanen/i)
+      page.getByRole("heading", { name: "Yang dihasilkan" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Yang tidak dilakukan" })
+    ).toHaveCount(0);
   });
 
   test("rejects oversized (>4MB) screenshot upload before hitting backend", async ({
