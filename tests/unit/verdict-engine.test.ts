@@ -415,6 +415,84 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
     ).toBe("FALSE");
   });
 
+  it("reads a debunked policy claim as FALSE when official pages omit independence labels", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim:
+        "Kapolri bakal memberlakukan SIM seumur hidup, dan kebijakan itu dinilai bisa memangkas birokrasi serta mencegah praktik pungli.",
+      postStance: "asserting_claim",
+      postStanceSummary:
+        "Teks headline menyajikan sebuah rencana kebijakan sebagai pernyataan faktual.",
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "main_event",
+          label: "Rencana Penerapan SIM Seumur Hidup",
+          proposition: "Kapolri bakal memberlakukan SIM seumur hidup.",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-02",
+          category: "modality_or_condition",
+          label: "Modus Pernyataan: Bakal / Rencana",
+          proposition:
+            "Pernyataan dalam teks menyatakan rencana atau niat, bukan implementasi yang sudah terjadi.",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-03",
+          category: "outcome_or_result",
+          label: "Dampak yang Dinilai",
+          proposition:
+            "SIM seumur hidup dinilai bisa memangkas birokrasi dan mencegah praktik pungli.",
+          requiredForFullConfirmation: false,
+        },
+      ],
+      sources: [
+        makeSource({
+          id: "SRC-01",
+          url: "https://korlantas.polri.go.id/sim",
+          domain: "korlantas.polri.go.id",
+          publisher: "Korlantas Polri",
+          sourceTier: "official_government",
+          evidenceNature: "unknown",
+          independence: "unknown",
+          excerptBasis: "ai_search_summary",
+          relation: "contradicting",
+          evaluatedAtomicClaimId: "AC-01",
+        }),
+        makeSource({
+          id: "SRC-02",
+          url: "https://www.komdigi.go.id/hoaks-sim",
+          domain: "komdigi.go.id",
+          publisher: "Komdigi",
+          sourceTier: "official_government",
+          evidenceNature: "unknown",
+          independence: "unknown",
+          excerptBasis: "ai_search_summary",
+          relation: "contradicting",
+          evaluatedAtomicClaimId: "AC-01",
+        }),
+        makeSource({
+          id: "SRC-03",
+          url: "https://www.antaranews.com/sim-hoaks",
+          domain: "antaranews.com",
+          publisher: "ANTARA",
+          sourceTier: "credible_media",
+          evidenceNature: "unknown",
+          independence: "unknown",
+          excerptBasis: "ai_search_summary",
+          relation: "contradicting",
+          evaluatedAtomicClaimId: "AC-01",
+        }),
+      ],
+    });
+
+    expect(verdict.claimVerdict).toBe("FALSE");
+    expect(
+      verdict.atomicAssessments?.find((item) => item.id === "AC-02")?.status
+    ).toBe("UNVERIFIED");
+  });
+
   it("uses a direct quotation only for the statement-made proposition it supports", () => {
     const verdict = computeVerdictFromEvidence({
       primaryClaim: "Pejabat mengatakan nilai ekonomi meningkat karena kebijakan",

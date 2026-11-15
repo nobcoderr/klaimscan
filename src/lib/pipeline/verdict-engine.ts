@@ -123,15 +123,29 @@ function hasIndependentCorroboration(sources: EvidenceSource[]): boolean {
             source.targetAspect === "plan_or_target" ||
             source.targetAspect === "implementation_or_outcome")))
   );
-  const independentlyCorroborating = nonSyndicated.filter(
-    (source) =>
-      source.independence === "independent" &&
-      source.sourceTier !== "public_source" &&
-      source.evidenceNature !== "commentary" &&
-      source.evidenceNature !== "unknown" &&
-      source.excerptBasis !== "url_only" &&
-      source.excerptBasis !== "fact_check_api_metadata"
-  );
+  const independentlyCorroborating = nonSyndicated.filter((source) => {
+    if (source.sourceTier === "public_source") return false;
+    if (source.evidenceNature === "commentary") return false;
+    if (
+      source.excerptBasis === "url_only" ||
+      source.excerptBasis === "fact_check_api_metadata"
+    ) {
+      return false;
+    }
+    const recognizedPublisher =
+      source.sourceTier === "official_government" ||
+      source.sourceTier === "fact_checker" ||
+      source.sourceTier === "credible_media";
+    const substantiveNature =
+      source.evidenceNature !== "unknown" && source.evidenceNature != null;
+    const unlabeledButDistinct =
+      (source.independence === "unknown" || source.independence == null) &&
+      recognizedPublisher;
+    return (
+      (source.independence === "independent" && substantiveNature) ||
+      unlabeledButDistinct
+    );
+  });
   return decisivePrimaryEvidence || independentlyCorroborating.length >= 2;
 }
 
@@ -492,6 +506,21 @@ export function computeVerdictFromEvidence(params: {
       optionalUnresolved.length > 0 && aggregate.status === "TRUE"
         ? `${aggregate.explanation} Aspek tambahan yang tidak menjadi inti klaim masih belum terverifikasi: ${optionalUnresolved.map((assessment) => assessment.label).join(", ")}.`
         : aggregate.explanation;
+    const requiredAtomBlocksHoax = atomicAssessments.some(
+      (assessment) =>
+        assessment.requiredForFullConfirmation !== false &&
+        (assessment.status === "TRUE" ||
+          assessment.status === "MISLEADING" ||
+          assessment.status === "OUTDATED")
+    );
+    if (
+      claimVerdict === "UNVERIFIED" &&
+      baseResolution.status === "FALSE" &&
+      !requiredAtomBlocksHoax
+    ) {
+      claimVerdict = "FALSE";
+      explanation = `Klaim utama dibantah oleh ${baseResolution.contradictPubsCount} penerbit. Bagian yang hanya mencatat modus, subjek, atau dampak opini tidak menahan bacaan hoaks.`;
+    }
   }
 
   if (unresolvedTimeContext && containsCheckableClaim) {
