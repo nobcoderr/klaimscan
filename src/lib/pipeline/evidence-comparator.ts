@@ -1414,6 +1414,31 @@ export function mapEvaluationsToVerifiedSources(params: {
         "Sumber membantah klaim teks yang sama, dan unggahan tidak menyebut tanggal kejadian baru, sehingga bantahan itu tetap dipakai.";
     }
 
+    const ratedSameUndatedClaim =
+      candidate.origin === "google_fact_check" &&
+      ratingFallback === "contradicting" &&
+      exactClaimDateMs === null &&
+      !temporalCtx.hasRelativeTimePhrase &&
+      !visualOnlyDebunk &&
+      targetAspect !== "image_authenticity" &&
+      doesCandidateMatchProposition(candidate, primaryClaim, {
+        claimDateMentioned,
+        visibleTimestamp,
+        referenceDateIso,
+        referenceNow,
+      });
+
+    if (
+      ratedSameUndatedClaim &&
+      !modelEval &&
+      (relation === "irrelevant" || relation === "insufficient")
+    ) {
+      relation = "contradicting";
+      targetAspect = "text_claim";
+      overrideRationale =
+        "Rating pemeriksa fakta menandai klaim yang sama sebagai salah, dan unggahan tidak menyebut tanggal kejadian baru, sehingga bantahan itu dipakai tanpa menunggu penilaian model.";
+    }
+
     if (
       relation !== "irrelevant" &&
       relation !== "insufficient" &&
@@ -1685,7 +1710,7 @@ export async function compareEvidenceAgainstClaim(params: {
     return {
       ...fallback,
       warning:
-        "Evaluasi LLM terhadap rincian bukti mengalami timeout/gangguan; karena kesetaraan semantik penuh belum dapat diverifikasi AI, status dijaga konservatif menjadi UNVERIFIED.",
+        "Evaluasi LLM terhadap rincian bukti mengalami timeout/gangguan. Rating pemeriksa fakta untuk klaim yang sama dan tanpa tanggal kejadian tetap dipakai; sumber lain tetap UNVERIFIED.",
     };
   } finally {
     clearTimeout(timeout);

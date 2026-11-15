@@ -306,7 +306,7 @@ export async function runAnalysisPipeline(params: {
           evaluations: [],
         });
         warnings.push(
-          "Anggaran waktu pipeline tersisa terlalu singkat; fallback pembanding AI tidak dapat menilai kesetaraan semantik penuh sehingga status dijaga konservatif menjadi UNVERIFIED."
+          "Anggaran waktu pipeline tersisa terlalu singkat; pembanding AI dilewati. Hanya rating pemeriksa fakta untuk klaim yang sama dan tanpa tanggal kejadian yang dipakai."
         );
       } else {
         const comparisonBudgetMs = Math.min(

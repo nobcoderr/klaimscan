@@ -319,13 +319,14 @@ describe("evidence-comparator P0 proposition alignment & anti-hallucination", ()
       )
     ).toBe(true);
 
-    // When AI comparison fails, a matching source is unassessed (insufficient), not irrelevant or decisive.
+    // When AI comparison fails, one matching official rating is kept as contradicting
+    // but a single publisher still cannot lock the verdict.
     const matchingFallback = mapEvaluationsToVerifiedSources({
       candidates: SAMPLE_CANDIDATES,
       primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
       evaluations: [],
     });
-    expect(matchingFallback.sources[0].relation).toBe("insufficient");
+    expect(matchingFallback.sources[0].relation).toBe("contradicting");
 
     const fallbackVerdict = computeVerdictFromEvidence({
       primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
@@ -334,6 +335,30 @@ describe("evidence-comparator P0 proposition alignment & anti-hallucination", ()
       sources: matchingFallback.sources,
     });
     expect(fallbackVerdict.claimVerdict).toBe("UNVERIFIED");
+
+    const secondPublisher: CandidateEvidence = {
+      ...SAMPLE_CANDIDATES[0],
+      id: "SRC-02",
+      title: "Salah, SIM tidak berlaku seumur hidup",
+      url: "https://www.komdigi.go.id/berita/hoaks-sim",
+      domain: "komdigi.go.id",
+      publisher: "Komdigi",
+    };
+    const agreedFallback = mapEvaluationsToVerifiedSources({
+      candidates: [...SAMPLE_CANDIDATES, secondPublisher],
+      primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
+      evaluations: [],
+    });
+    expect(agreedFallback.sources.every((source) => source.relation === "contradicting")).toBe(
+      true
+    );
+    const agreedVerdict = computeVerdictFromEvidence({
+      primaryClaim: "SIM berlaku seumur hidup gratis tanpa perpanjangan",
+      postStance: "asserting_claim",
+      postStanceSummary: "Postingan mengklaim SIM seumur hidup.",
+      sources: agreedFallback.sources,
+    });
+    expect(agreedVerdict.claimVerdict).toBe("FALSE");
   });
 
   it("keeps an official debunk of the same undated claim when the model marks it irrelevant", () => {
