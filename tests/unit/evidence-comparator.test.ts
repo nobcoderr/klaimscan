@@ -336,6 +336,75 @@ describe("evidence-comparator P0 proposition alignment & anti-hallucination", ()
     expect(fallbackVerdict.claimVerdict).toBe("UNVERIFIED");
   });
 
+  it("keeps an official debunk of the same undated claim when the model marks it irrelevant", () => {
+    const mapped = mapEvaluationsToVerifiedSources({
+      candidates: [
+        {
+          id: "SRC-KORLANTAS",
+          title: "Hoaks Kapolri berlakukan SIM seumur hidup",
+          url: "https://korlantas.polri.go.id/sim-seumur-hidup",
+          domain: "korlantas.polri.go.id",
+          publisher: "Korlantas Polri",
+          publishedAt: "2025-08-01",
+          snippet:
+            "Korlantas menegaskan kabar SIM seumur hidup adalah hoaks. Masa berlaku SIM tetap 5 tahun.",
+          origin: "openai_web_search",
+          sourceTier: "official_government",
+        },
+        {
+          id: "SRC-KOMDIGI",
+          title: "Klarifikasi hoaks SIM seumur hidup",
+          url: "https://www.komdigi.go.id/hoaks-sim-seumur-hidup",
+          domain: "komdigi.go.id",
+          publisher: "Komdigi",
+          publishedAt: "2025-08-02",
+          snippet:
+            "Klaim Kapolri akan memberlakukan SIM seumur hidup tidak benar.",
+          origin: "openai_web_search",
+          sourceTier: "official_government",
+          ratingText: "Salah",
+        },
+      ],
+      primaryClaim:
+        "Kapolri bakal memberlakukan SIM seumur hidup, yang dinilai bisa memangkas birokrasi dan mencegah praktik pungli.",
+      evaluations: [
+        {
+          id: "SRC-KORLANTAS",
+          addressesSameProposition: false,
+          matchesTimeContext: false,
+          temporalCompatibility: "historical_debunk",
+          relation: "irrelevant",
+          claimEvaluated: "Kebijakan lama",
+          rationale: "Artikel lebih dulu dari unggahan.",
+          mentionsOutdatedContext: false,
+        },
+        {
+          id: "SRC-KOMDIGI",
+          addressesSameProposition: false,
+          matchesTimeContext: false,
+          temporalCompatibility: "historical_debunk",
+          relation: "irrelevant",
+          claimEvaluated: "Hoaks lama",
+          rationale: "Bukan tanggal klaim baru.",
+          mentionsOutdatedContext: false,
+        },
+      ],
+    });
+
+    expect(mapped.sources.every((source) => source.relation === "contradicting")).toBe(
+      true
+    );
+
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim:
+        "Kapolri bakal memberlakukan SIM seumur hidup, yang dinilai bisa memangkas birokrasi dan mencegah praktik pungli.",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyajikan klaim berita.",
+      sources: mapped.sources,
+    });
+    expect(verdict.claimVerdict).toBe("FALSE");
+  });
+
   it("retains undated official evergreen sources when claim has no date constraint", () => {
     const evergreenCandidate: CandidateEvidence = {
       id: "SRC-03",

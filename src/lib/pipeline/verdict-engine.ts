@@ -126,11 +126,13 @@ function hasIndependentCorroboration(sources: EvidenceSource[]): boolean {
   const independentlyCorroborating = nonSyndicated.filter((source) => {
     if (source.sourceTier === "public_source") return false;
     if (source.evidenceNature === "commentary") return false;
-    if (
-      source.excerptBasis === "url_only" ||
-      source.excerptBasis === "fact_check_api_metadata"
-    ) {
-      return false;
+    if (source.excerptBasis === "url_only") return false;
+    if (source.excerptBasis === "fact_check_api_metadata") {
+      return (
+        source.relation === "contradicting" &&
+        (source.sourceTier === "official_government" ||
+          source.sourceTier === "fact_checker")
+      );
     }
     const recognizedPublisher =
       source.sourceTier === "official_government" ||

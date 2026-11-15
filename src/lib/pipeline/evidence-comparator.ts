@@ -1042,6 +1042,39 @@ export function inferRelationFromRatingText(
   return null;
 }
 
+const DEBUNK_LANGUAGE_RE =
+  /\b(?:hoaks|hoax|tidak\s+benar|bukan\s+fakta|klarifikasi|disinformasi|keliru|palsu)\b/i;
+
+export function isUndatedSameClaimDebunk(params: {
+  primaryClaim: string;
+  candidateText: string;
+  sourceTier?: string;
+  exactClaimDateMs: number | null;
+  hasRelativeTimePhrase: boolean;
+}): boolean {
+  if (params.exactClaimDateMs !== null || params.hasRelativeTimePhrase) {
+    return false;
+  }
+  if (
+    params.sourceTier !== "official_government" &&
+    params.sourceTier !== "fact_checker" &&
+    params.sourceTier !== "credible_media"
+  ) {
+    return false;
+  }
+  if (!DEBUNK_LANGUAGE_RE.test(params.candidateText)) return false;
+
+  const claimTokens = new Set(
+    extractAllLowerTokens(params.primaryClaim).filter((token) => token.length >= 3)
+  );
+  const overlap = new Set(
+    extractAllLowerTokens(params.candidateText).filter(
+      (token) => token.length >= 3 && claimTokens.has(token)
+    )
+  );
+  return overlap.size >= 3;
+}
+
 export interface ComparisonEvaluationInput {
   id: string;
   addressesSameProposition?: boolean;
@@ -1343,6 +1376,42 @@ export function mapEvaluationsToVerifiedSources(params: {
         : ratingFallback
           ? "Pembanding AI gagal/tidak tersedia untuk memverifikasi kesetaraan makna penuh; rating fact-check tidak diterapkan otomatis tanpa evaluasi AI sehingga status dijaga tetap UNVERIFIED."
           : "Pembanding AI tidak mengembalikan evaluasi semantik; isi sumber belum cukup untuk menilai klaim dan status dijaga UNVERIFIED.";
+    }
+
+    const claimedTextConflicts =
+      Boolean(candidate.claimedText?.trim()) &&
+      hasHardSemanticConflict(primaryClaim, candidate.claimedText ?? "", {
+        claimDateMentioned,
+        visibleTimestamp,
+        referenceDateIso,
+        referenceNow,
+        candidatePublishedAt: candidate.publishedAt,
+        candidateTitle: candidate.title,
+      });
+
+    if (
+      relation === "irrelevant" &&
+      modelEval &&
+      !claimedTextConflicts &&
+      targetAspect !== "image_authenticity" &&
+      !visualOnlyDebunk &&
+      isUndatedSameClaimDebunk({
+        primaryClaim,
+        candidateText: [
+          candidate.title,
+          candidate.snippet,
+          candidate.claimedText ?? "",
+          candidate.ratingText ?? "",
+        ].join(" "),
+        sourceTier: candidate.sourceTier,
+        exactClaimDateMs,
+        hasRelativeTimePhrase: temporalCtx.hasRelativeTimePhrase,
+      })
+    ) {
+      relation = "contradicting";
+      targetAspect = "text_claim";
+      overrideRationale =
+        "Sumber membantah klaim teks yang sama, dan unggahan tidak menyebut tanggal kejadian baru, sehingga bantahan itu tetap dipakai.";
     }
 
     if (
