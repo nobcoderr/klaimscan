@@ -356,6 +356,65 @@ describe("computeVerdictFromEvidence & P0 corroboration integrity", () => {
     ).toBe(true);
   });
 
+  it("keeps a contradicted headline as FALSE when subject identity has no separate sources", () => {
+    const verdict = computeVerdictFromEvidence({
+      primaryClaim:
+        "Kapolri bakal memberlakukan SIM seumur hidup dan kebijakan itu dinilai bisa memangkas birokrasi serta mencegah praktik pungli.",
+      postStance: "asserting_claim",
+      postStanceSummary: "Unggahan menyajikan sebuah rencana kebijakan sebagai klaim berita.",
+      atomicClaims: [
+        {
+          id: "AC-01",
+          category: "subject_identity",
+          label: "Subjek Utama",
+          proposition: "Kapolri menjadi subjek utama dalam headline.",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-02",
+          category: "main_event",
+          label: "Klaim Headline Utama",
+          proposition: "Kapolri bakal memberlakukan SIM seumur hidup.",
+          requiredForFullConfirmation: true,
+        },
+        {
+          id: "AC-03",
+          category: "outcome_or_result",
+          label: "Dampak yang Dinilai",
+          proposition: "SIM seumur hidup dinilai bisa memangkas birokrasi.",
+          requiredForFullConfirmation: false,
+        },
+      ],
+      sources: [
+        makeSource({
+          id: "SRC-01",
+          url: "https://www.komdigi.go.id/hoaks-sim",
+          domain: "komdigi.go.id",
+          publisher: "Komdigi",
+          relation: "contradicting",
+          evaluatedAtomicClaimId: "AC-02",
+        }),
+        makeSource({
+          id: "SRC-03",
+          url: "https://news.detik.com/sim-seumur-hidup",
+          domain: "detik.com",
+          publisher: "Detik",
+          sourceTier: "credible_media",
+          relation: "contradicting",
+          evaluatedAtomicClaimId: "AC-02",
+        }),
+      ],
+    });
+
+    expect(verdict.claimVerdict).toBe("FALSE");
+    expect(
+      verdict.atomicAssessments?.find((item) => item.id === "AC-01")?.status
+    ).toBe("UNVERIFIED");
+    expect(
+      verdict.atomicAssessments?.find((item) => item.id === "AC-02")?.status
+    ).toBe("FALSE");
+  });
+
   it("uses a direct quotation only for the statement-made proposition it supports", () => {
     const verdict = computeVerdictFromEvidence({
       primaryClaim: "Pejabat mengatakan nilai ekonomi meningkat karena kebijakan",

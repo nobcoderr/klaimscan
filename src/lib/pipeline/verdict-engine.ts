@@ -287,6 +287,14 @@ function aggregateRequiredAtomicClaims(
   const unresolved = required.filter(
     (assessment) => assessment.status === "UNVERIFIED"
   );
+  const identityGap = (assessment: AtomicClaimAssessment) =>
+    assessment.status === "UNVERIFIED" &&
+    assessment.evidenceIds.length === 0 &&
+    (assessment.category === "subject_identity" ||
+      /^subjek\s+utama$/i.test(assessment.label.trim()));
+  const blockingUnresolved = unresolved.filter(
+    (assessment) => !identityGap(assessment)
+  );
 
   if (confirmed.length > 0 && contradicted.length > 0) {
     return {
@@ -309,6 +317,23 @@ function aggregateRequiredAtomicClaims(
       explanation: `Seluruh proposisi wajib yang diuji dibantah oleh bukti yang selaras (${contradicted.map((item) => item.label).join(", ")}).`,
     };
   }
+  if (
+    contradicted.length > 0 &&
+    confirmed.length === 0 &&
+    misleading.length === 0 &&
+    outdated.length === 0 &&
+    blockingUnresolved.length === 0
+  ) {
+    const ignoredIdentity = unresolved.filter(identityGap);
+    const identityNote =
+      ignoredIdentity.length > 0
+        ? ` Identitas subjek pada teks (${ignoredIdentity.map((item) => item.label).join(", ")}) tidak punya sumber terpisah dan tidak menahan bacaan hoaks.`
+        : "";
+    return {
+      status: "FALSE",
+      explanation: `Proposisi wajib yang teruji dibantah oleh bukti yang selaras (${contradicted.map((item) => item.label).join(", ")}).${identityNote}`,
+    };
+  }
   if (misleading.length > 0) {
     return {
       status: "MISLEADING",
@@ -321,10 +346,11 @@ function aggregateRequiredAtomicClaims(
       explanation: `Bukti yang sesuai menunjukkan konteks peristiwa pada proposisi wajib telah kedaluwarsa (${outdated.map((item) => item.label).join(", ")}).`,
     };
   }
-  if (unresolved.length > 0) {
+  if (blockingUnresolved.length > 0 || (unresolved.length > 0 && contradicted.length === 0)) {
+    const held = blockingUnresolved.length > 0 ? blockingUnresolved : unresolved;
     return {
       status: "UNVERIFIED",
-      explanation: `Aspek wajib belum semuanya dapat diverifikasi (${unresolved.map((item) => item.label).join(", ")}); bagian yang telah terbukti tidak digunakan untuk mengasumsikan sisanya.`,
+      explanation: `Aspek wajib belum semuanya dapat diverifikasi (${held.map((item) => item.label).join(", ")}); bagian yang telah terbukti tidak digunakan untuk mengasumsikan sisanya.`,
     };
   }
   if (confirmed.length === required.length) {

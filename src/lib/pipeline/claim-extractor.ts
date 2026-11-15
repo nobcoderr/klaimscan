@@ -1013,6 +1013,7 @@ export async function extractClaimsFromOcrText(params: {
     `6. PENANGGALAN RELATIF ('hari ini', 'kemarin', 'besok', 'lusa', 'sekarang', 'saat ini'): JIKA 'visiblePublicationDate' berisi tanggal kalender eksplisit (mis. '15 Oktober 2024'), gunakan tanggal postingan itu sebagai acuan kata waktu relatif tersebut. JIKA 'visiblePublicationDate' kosong/null atau hanya relatif (mis. '3 jam lalu'), DILARANG mengonversi 'hari ini'/'kemarin' menjadi tanggal unggah (${todayIso}) — pertahankan frasa relatifnya apa adanya agar konteks waktu tidak dianggap hari ini.`,
     "7. Pisahkan tahap pernyataan sesuai teks, seperti dugaan vs fakta yang ditetapkan, usulan vs persetujuan, target/prediksi vs hasil, dan pelaporan vs putusan. Bila modality normalizedClaims menunjukkan intention/proposal/approved/target/prediction, Anda boleh menambahkan satu pemeriksaan outcome_or_result dengan requiredForFullConfirmation=false; tandai jelas bahwa ini bukan proposisi yang diklaim oleh screenshot dan jangan gunakan statusnya untuk mengubah kebenaran klaim awal. Jangan menyimpulkan outcome terjadi tanpa bukti yang sesuai.",
     "8. Jangan menganggap hashtag sebagai username, klaim faktual, atau teks klarifikasi. Gunakan hanya OCR headline/caption faktual; metadata akun, ID media, angka dekoratif, dan hashtag bukan bagian klaim.",
+    "9. Atom category=subject_identity hanya mencatat pelaku yang sudah tertulis di headline. Wajib requiredForFullConfirmation=false. Ketiadaan halaman web tentang identitas subjek tidak boleh menahan verdict klaim utama.",
   ].join("\n");
 
   const structuredTextPayload = {
@@ -1199,7 +1200,7 @@ export async function extractClaimsFromOcrText(params: {
     ) {
       outcomeClaimId += 1;
     }
-    const atomicClaimsWithOutcomeCheck =
+    const atomicClaimsWithOutcomeCheck = (
       hasFutureOrUncertainOutcome &&
       !outcomeCheckAlreadyPresent &&
       stanceFiltered.atomicClaims.length < 5
@@ -1213,7 +1214,12 @@ export async function extractClaimsFromOcrText(params: {
               requiredForFullConfirmation: false,
             },
           ]
-        : stanceFiltered.atomicClaims;
+        : stanceFiltered.atomicClaims
+    ).map((claim) =>
+      claim.category === "subject_identity"
+        ? { ...claim, requiredForFullConfirmation: false }
+        : claim
+    );
 
     const atomicClaims = buildFallbackAtomicClaims({
       primaryClaim: normalized.primaryClaim,
